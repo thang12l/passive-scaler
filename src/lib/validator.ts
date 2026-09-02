@@ -1,6 +1,6 @@
-import { timingSafeEqual } from "crypto";
 import { z } from "zod";
-import { getConfig } from "./config";
+import type { App } from "@prisma/client";
+import { verifySecret } from "./secrets";
 import type { MetricsInput } from "./scaling-engine";
 
 const numericRecord = z.record(z.union([z.number(), z.string()]).pipe(z.coerce.number()));
@@ -72,29 +72,18 @@ export function normalizeMetricsForScaling(payload: MetricsPayload): MetricsInpu
   };
 }
 
-function safeCompare(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
-}
-
-export function validateWebhookSecret(
-  headerSecret: string | null,
+export function validateAppWebhookSecret(
+  app: App,
+  authHeader: string | null,
   bodySecret: string | undefined
 ): boolean {
-  const expected = getConfig().WEBHOOK_SECRET;
-  if (headerSecret?.startsWith("Bearer ")) {
-    return safeCompare(headerSecret.slice(7), expected);
+  if (authHeader?.startsWith("Bearer ")) {
+    return verifySecret(authHeader.slice(7), app.webhookSecretHash);
   }
   if (bodySecret) {
-    return safeCompare(bodySecret, expected);
+    return verifySecret(bodySecret, app.webhookSecretHash);
   }
   return false;
-}
-
-export function validateAppName(appName: string): boolean {
-  return appName === getConfig().TARGET_HEROKU_APP;
 }
 
 export function parseMetricsPayload(body: unknown):

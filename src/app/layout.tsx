@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import "./globals.css";
+import { SiteHeader } from "@/components/site-header";
 
 export const metadata: Metadata = {
   title: "Passive Scaler",
@@ -12,7 +14,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <SiteHeader />
+        <main>{children}</main>
+      </body>
     </html>
   );
 }

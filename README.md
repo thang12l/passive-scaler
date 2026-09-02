@@ -1,6 +1,6 @@
 # Passive Scaler
 
-Push-based auto-scaling service. A target app POSTs metrics to a Vercel webhook; this service decides whether to scale Heroku web dynos and persists state in Postgres.
+Push-based auto-scaling service. Target apps POST metrics to a Vercel webhook; Passive Scaler decides whether to scale Heroku web dynos and persists state in Postgres.
 
 ## Setup
 
@@ -8,19 +8,20 @@ Push-based auto-scaling service. A target app POSTs metrics to a Vercel webhook;
 
 ```bash
 cp .env.docker.example .env.docker
-# Edit .env.docker with your Heroku API key and app name
 docker compose up --build
+npm run db:push   # if needed
+npm run db:seed   # optional legacy import
 ```
 
-App runs at http://localhost:3000. Postgres is exposed on port 5432.
+App runs at http://localhost:3000.
 
 ### Manual
 
 ```bash
 npm install
 cp .env.example .env.local
-# Fill in env vars, then:
 npm run db:push
+npm run db:seed   # optional
 npm run dev
 ```
 
@@ -34,41 +35,82 @@ npm run db:push
 vercel --prod
 ```
 
-## Endpoints
+Set `ADMIN_SECRET` in Vercel env vars before using the dashboard.
 
-### POST `/api/webhooks/heroku-metrics`
+## Dashboard
 
-Receives metrics and runs the scaling decision engine.
+Open `/apps` and sign in with `ADMIN_SECRET`.
 
-**Auth:** `Authorization: Bearer <WEBHOOK_SECRET>` (or `secret_token` in body)
+- Add apps with per-app scaling thresholds
+- Enable **dry run** per app (decisions logged, no Heroku calls)
+- Copy webhook URL and per-app secret on create
+
+## Webhook
+
+### POST `/api/webhooks/metrics`
+
+Canonical metrics endpoint. Legacy alias: `/api/webhooks/heroku-metrics`.
+
+**Auth:** `Authorization: Bearer <per-app-webhook-secret>`
 
 ```bash
-curl -X POST http://localhost:3000/api/webhooks/heroku-metrics \
+curl -X POST http://localhost:3000/api/webhooks/metrics \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-webhook-secret" \
+  -H "Authorization: Bearer <app-webhook-secret>" \
   -d '{
-    "app_name": "your-laravel-app",
+    "app_name": "cartmagician",
+    "process_type": "web",
     "avg_response_time": 150.5,
     "memory_percent": 72.3,
     "requests_per_minute": 45,
-    "timestamp": "2026-05-27T10:30:45Z"
+    "timestamp": "2026-09-02T05:38:00Z"
   }'
 ```
 
-### GET `/api/status`
+### GET `/api/status?app=<slug>`
 
-Returns current scaling state. Requires `Authorization: Bearer <WEBHOOK_SECRET>`.
+Returns current scaling state for an app. Requires that app's webhook secret.
+
+## Admin API
+
+All routes require `Authorization: Bearer <ADMIN_SECRET>`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/apps` | List apps |
+| POST | `/api/apps` | Create app (returns webhook secret once) |
+| GET | `/api/apps/:slug` | Get app + state |
+| PATCH | `/api/apps/:slug` | Update app settings |
+| DELETE | `/api/apps/:slug` | Delete app |
+| POST | `/api/apps/:slug/regenerate-secret` | Rotate webhook secret |
 
 ## Environment Variables
 
-See `.env.example` for manual setup or `.env.docker.example` for Docker Compose.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ADMIN_SECRET` | Yes | Protects dashboard and admin API |
+| `DATABASE_URL` | Yes | Postgres connection string |
+| `HEROKU_API_KEY` | No | Platform-wide Heroku key (apps can override) |
+| `APP_BASE_URL` | No | Public URL for webhook links in dashboard |
 
-### Dry-run mode (no Heroku API key)
+### Per-app settings (in database)
 
-Leave `HEROKU_API_KEY` empty or unset. The app still accepts metrics, runs the scaling decision engine, and persists state locally — but it does **not** call the Heroku API. The webhook response includes `dry_run: true` when scaling is simulated.
+- `scaling_enabled` — master on/off
+- `dry_run` — run engine but never call Heroku
+- Thresholds, cooldowns, min/max dynos
+- Optional per-app Heroku API key
+
+### Legacy seed
+
+If migrating from single-app env vars, set `TARGET_HEROKU_APP` and `WEBHOOK_SECRET` then run:
+
+```bash
+npm run db:seed
+```
 
 ## Architecture
 
-- **Webhook** — validates metrics, updates state, calls Heroku API when needed
+- **Apps table** — per-app config, webhook secret hash, dry-run flag
+- **Webhook** — lookup app by slug, verify per-app secret, scale if live
 - **Scaling engine** — pure decision logic with cooldowns and thresholds
 - **Postgres** — tracks dyno count, last scale time, and event history

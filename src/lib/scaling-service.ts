@@ -1,57 +1,60 @@
+import type { App } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { appToScalingConfig, isLiveScaling, resolveHerokuApiKey } from "./app-config";
 import { prisma } from "./db";
-import { getConfig, isHerokuConfigured } from "./config";
 import { getWebDynoCount, scaleWebDynos } from "./heroku-client";
 import { logger } from "./logger";
 import { makeScalingDecision, type MetricsInput, type ScalingDecision } from "./scaling-engine";
 
-const DRY_RUN_SUFFIX = " (dry-run: Heroku API key not configured)";
+const DRY_RUN_SUFFIX = " (dry-run)";
 
 export interface ProcessMetricsResult extends ScalingDecision {
   dryRun: boolean;
+  scalingEnabled: boolean;
 }
 
-export async function getOrCreateState(appName: string) {
-  const existing = await prisma.scalingState.findUnique({ where: { appName } });
+async function ensureScalingState(app: App) {
+  const existing = await prisma.scalingState.findUnique({ where: { appSlug: app.slug } });
   if (existing) return existing;
 
-  let currentDynos = getConfig().MIN_DYNOS;
-  const herokuCount = await getWebDynoCount(appName);
-  if (herokuCount !== null) {
-    currentDynos = herokuCount;
-  } else if (!isHerokuConfigured()) {
-    logger.info("Heroku API key not configured, using MIN_DYNOS for state", { appName });
-  } else {
-    logger.warn("Could not fetch Heroku dyno count, using MIN_DYNOS", { appName });
+  let currentDynos = app.minDynos;
+  const apiKey = resolveHerokuApiKey(app);
+  if (apiKey && !app.dryRun) {
+    try {
+      currentDynos = await getWebDynoCount(app.herokuAppName, apiKey);
+    } catch (error) {
+      logger.warn("Could not fetch Heroku dyno count, using min_dynos", {
+        appSlug: app.slug,
+        error: error instanceof Error ? error.message : "unknown",
+      });
+    }
   }
 
   return prisma.scalingState.create({
     data: {
-      appName,
+      appSlug: app.slug,
       currentDynos,
-      lastAction: null,
-      lastScaleTime: null,
     },
   });
 }
 
-async function acquireScalingLock(appName: string): Promise<boolean> {
+async function acquireScalingLock(appSlug: string): Promise<boolean> {
   const updated = await prisma.scalingState.updateMany({
-    where: { appName, scalingInProgress: false },
+    where: { appSlug, scalingInProgress: false },
     data: { scalingInProgress: true },
   });
   return updated.count === 1;
 }
 
-async function releaseScalingLock(appName: string): Promise<void> {
+async function releaseScalingLock(appSlug: string): Promise<void> {
   await prisma.scalingState.update({
-    where: { appName },
+    where: { appSlug },
     data: { scalingInProgress: false },
   });
 }
 
 async function recordScalingAction(
-  appName: string,
+  app: App,
   decision: ScalingDecision,
   metrics: MetricsInput,
   newQuantity: number,
@@ -59,7 +62,7 @@ async function recordScalingAction(
   dryRun: boolean
 ): Promise<ProcessMetricsResult> {
   await prisma.scalingState.update({
-    where: { appName },
+    where: { appSlug: app.slug },
     data: {
       currentDynos: newQuantity,
       lastScaleTime: new Date(),
@@ -70,7 +73,7 @@ async function recordScalingAction(
 
   await prisma.scalingEvent.create({
     data: {
-      appName,
+      appSlug: app.slug,
       action: decision.action!,
       reason,
       metricsJson: { ...metrics, dry_run: dryRun } as unknown as Prisma.InputJsonValue,
@@ -78,7 +81,7 @@ async function recordScalingAction(
   });
 
   logger.info(dryRun ? "Dry-run scaling action recorded" : "Scaling action completed", {
-    appName,
+    appSlug: app.slug,
     action: decision.action,
     from: decision.currentDynos,
     to: newQuantity,
@@ -91,60 +94,82 @@ async function recordScalingAction(
     targetDynos: newQuantity,
     reason,
     dryRun,
+    scalingEnabled: app.scalingEnabled,
   };
 }
 
-export async function processMetrics(
-  appName: string,
-  metrics: MetricsInput
-): Promise<ProcessMetricsResult> {
-  const config = getConfig();
-  const herokuEnabled = isHerokuConfigured();
-  const state = await prisma.scalingState.findUnique({ where: { appName } });
+export async function getOrCreateState(app: App) {
+  return ensureScalingState(app);
+}
 
-  if (!state) {
-    throw new Error(`Scaling state not found for ${appName}`);
+export async function processMetrics(app: App, metrics: MetricsInput): Promise<ProcessMetricsResult> {
+  const scalingConfig = appToScalingConfig(app);
+  const liveScaling = isLiveScaling(app);
+  const state = await ensureScalingState(app);
+
+  await prisma.scalingState.update({
+    where: { appSlug: app.slug },
+    data: {
+      lastResponseTime: new Prisma.Decimal(metrics.avgResponseTime),
+      lastMemoryPercent: new Prisma.Decimal(metrics.memoryPercent),
+    },
+  });
+
+  if (!app.scalingEnabled) {
+    return {
+      shouldScale: false,
+      action: null,
+      currentDynos: state.currentDynos ?? app.minDynos,
+      targetDynos: state.currentDynos ?? app.minDynos,
+      reason: "Scaling disabled for this app",
+      dryRun: true,
+      scalingEnabled: false,
+    };
   }
 
   if (state.scalingInProgress) {
     return {
       shouldScale: false,
       action: null,
-      currentDynos: state.currentDynos ?? config.MIN_DYNOS,
-      targetDynos: state.currentDynos ?? config.MIN_DYNOS,
+      currentDynos: state.currentDynos ?? app.minDynos,
+      targetDynos: state.currentDynos ?? app.minDynos,
       reason: "Scaling already in progress",
-      dryRun: !herokuEnabled,
+      dryRun: !liveScaling,
+      scalingEnabled: true,
     };
   }
 
-  let currentDynos = state.currentDynos ?? config.MIN_DYNOS;
-  const herokuCount = await getWebDynoCount(appName);
-  if (herokuCount !== null) {
-    currentDynos = herokuCount;
-  } else if (herokuEnabled) {
-    logger.warn("Using cached dyno count", { appName, cached: currentDynos });
+  let currentDynos = state.currentDynos ?? app.minDynos;
+  const apiKey = resolveHerokuApiKey(app);
+
+  if (apiKey && !app.dryRun) {
+    try {
+      currentDynos = await getWebDynoCount(app.herokuAppName, apiKey);
+    } catch (error) {
+      logger.warn("Using cached dyno count", {
+        appSlug: app.slug,
+        cached: currentDynos,
+        error: error instanceof Error ? error.message : "unknown",
+      });
+    }
   }
+
+  await prisma.scalingState.update({
+    where: { appSlug: app.slug },
+    data: { currentDynos },
+  });
 
   const decision = makeScalingDecision(
     metrics,
     { currentDynos, lastScaleTime: state.lastScaleTime },
-    config
+    scalingConfig
   );
 
-  await prisma.scalingState.update({
-    where: { appName },
-    data: {
-      lastResponseTime: new Prisma.Decimal(metrics.avgResponseTime),
-      lastMemoryPercent: new Prisma.Decimal(metrics.memoryPercent),
-      currentDynos,
-    },
-  });
-
   if (!decision.shouldScale || !decision.action) {
-    return { ...decision, dryRun: !herokuEnabled };
+    return { ...decision, dryRun: !liveScaling, scalingEnabled: true };
   }
 
-  const locked = await acquireScalingLock(appName);
+  const locked = await acquireScalingLock(app.slug);
   if (!locked) {
     return {
       shouldScale: false,
@@ -152,36 +177,36 @@ export async function processMetrics(
       currentDynos,
       targetDynos: currentDynos,
       reason: "Scaling already in progress",
-      dryRun: !herokuEnabled,
+      dryRun: !liveScaling,
+      scalingEnabled: true,
     };
   }
 
-  if (!herokuEnabled) {
+  if (!liveScaling) {
     const reason = `${decision.reason}${DRY_RUN_SUFFIX}`;
-    return recordScalingAction(appName, decision, metrics, decision.targetDynos, reason, true);
+    return recordScalingAction(app, decision, metrics, decision.targetDynos, reason, true);
   }
 
   try {
-    const newQuantity = await scaleWebDynos(decision.targetDynos, appName);
-    if (newQuantity === null) {
-      const reason = `${decision.reason}${DRY_RUN_SUFFIX}`;
-      return recordScalingAction(appName, decision, metrics, decision.targetDynos, reason, true);
-    }
-
-    return recordScalingAction(appName, decision, metrics, newQuantity, decision.reason, false);
+    const newQuantity = await scaleWebDynos(app.herokuAppName, apiKey!, decision.targetDynos);
+    return recordScalingAction(app, decision, metrics, newQuantity, decision.reason, false);
   } catch (error) {
-    await releaseScalingLock(appName);
+    await releaseScalingLock(app.slug);
     throw error;
   }
 }
 
-export async function getStatus(appName: string) {
+export async function getAppStatus(appSlug: string) {
   return prisma.scalingState.findUnique({
-    where: { appName },
+    where: { appSlug },
     include: {
-      events: {
-        orderBy: { createdAt: "desc" },
-        take: 10,
+      app: {
+        include: {
+          events: {
+            orderBy: { createdAt: "desc" },
+            take: 10,
+          },
+        },
       },
     },
   });

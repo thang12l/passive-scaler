@@ -9,6 +9,7 @@
     "lint": "eslint",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
+    "db:seed": "node prisma/seed.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -26,6 +27,10 @@
     "eslint": "^9.36.0",
     "eslint-config-next": "^15.5.4",
     "prisma": "^6.19.0",
+    "tsx": "^4.20.5",
     "typescript": "^5.9.2"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.mjs"
   }
 }

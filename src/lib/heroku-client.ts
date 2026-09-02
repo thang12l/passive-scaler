@@ -1,4 +1,3 @@
-import { getConfig, isHerokuConfigured } from "./config";
 import { logger } from "./logger";
 
 const HEROKU_API_BASE = "https://api.heroku.com";
@@ -8,13 +7,12 @@ interface HerokuFormation {
   type: string;
 }
 
-async function herokuFetch(path: string, init?: RequestInit): Promise<Response> {
-  const config = getConfig();
+async function herokuFetch(apiKey: string, path: string, init?: RequestInit): Promise<Response> {
   const response = await fetch(`${HEROKU_API_BASE}${path}`, {
     ...init,
     headers: {
       Accept: "application/vnd.heroku+json; version=3",
-      Authorization: `Bearer ${config.HEROKU_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
       ...init?.headers,
     },
@@ -33,28 +31,25 @@ async function herokuFetch(path: string, init?: RequestInit): Promise<Response> 
   return response;
 }
 
-export async function getWebDynoCount(appName?: string): Promise<number | null> {
-  if (!isHerokuConfigured()) {
-    return null;
-  }
-
-  const app = appName ?? getConfig().TARGET_HEROKU_APP;
-  const response = await herokuFetch(`/apps/${app}/formation/web`);
+export async function getWebDynoCount(
+  herokuAppName: string,
+  apiKey: string
+): Promise<number> {
+  const response = await herokuFetch(apiKey, `/apps/${herokuAppName}/formation/web`);
   const formation = (await response.json()) as HerokuFormation;
   return formation.quantity;
 }
 
-export async function scaleWebDynos(quantity: number, appName?: string): Promise<number | null> {
-  if (!isHerokuConfigured()) {
-    return null;
-  }
-
-  const app = appName ?? getConfig().TARGET_HEROKU_APP;
-  const response = await herokuFetch(`/apps/${app}/formation/web`, {
+export async function scaleWebDynos(
+  herokuAppName: string,
+  apiKey: string,
+  quantity: number
+): Promise<number> {
+  const response = await herokuFetch(apiKey, `/apps/${herokuAppName}/formation/web`, {
     method: "PATCH",
     body: JSON.stringify({ quantity }),
   });
   const formation = (await response.json()) as HerokuFormation;
-  logger.info("Scaled Heroku formation", { app, quantity: formation.quantity });
+  logger.info("Scaled Heroku formation", { app: herokuAppName, quantity: formation.quantity });
   return formation.quantity;
 }

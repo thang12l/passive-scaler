@@ -7,34 +7,57 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model App {
+  slug                     String   @id
+  displayName              String   @map("display_name")
+  herokuAppName            String   @map("heroku_app_name")
+  webhookSecretHash        String   @map("webhook_secret_hash")
+  scalingEnabled           Boolean  @default(true) @map("scaling_enabled")
+  dryRun                   Boolean  @default(true) @map("dry_run")
+  minDynos                 Int      @default(1) @map("min_dynos")
+  maxDynos                 Int      @default(10) @map("max_dynos")
+  responseTimeThresholdMs  Int      @default(2000) @map("response_time_threshold_ms")
+  memoryThresholdPercent   Decimal  @default(85) @map("memory_threshold_percent") @db.Decimal(5, 2)
+  scaleUpCooldownSeconds   Int      @default(300) @map("scale_up_cooldown_seconds")
+  scaleDownCooldownSeconds Int      @default(600) @map("scale_down_cooldown_seconds")
+  herokuApiKey             String?  @map("heroku_api_key")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  scalingState ScalingState?
+  events       ScalingEvent[]
+
+  @@map("apps")
+}
+
 model ScalingState {
-  id                 Int       @id @default(autoincrement())
-  appName            String    @unique @map("app_name")
-  lastScaleTime      DateTime? @map("last_scale_time")
-  lastAction         String?   @map("last_action")
-  currentDynos       Int?      @map("current_dynos")
-  lastResponseTime   Decimal?  @map("last_response_time") @db.Decimal(10, 2)
-  lastMemoryPercent  Decimal?  @map("last_memory_percent") @db.Decimal(5, 2)
-  scalingInProgress  Boolean   @default(false) @map("scaling_in_progress")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  id                Int       @id @default(autoincrement())
+  appSlug           String    @unique @map("app_slug")
+  lastScaleTime     DateTime? @map("last_scale_time")
+  lastAction        String?   @map("last_action")
+  currentDynos      Int?      @map("current_dynos")
+  lastResponseTime  Decimal?  @map("last_response_time") @db.Decimal(10, 2)
+  lastMemoryPercent Decimal?  @map("last_memory_percent") @db.Decimal(5, 2)
+  scalingInProgress Boolean   @default(false) @map("scaling_in_progress")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  events ScalingEvent[]
+  app App @relation(fields: [appSlug], references: [slug], onDelete: Cascade)
 
-  @@index([appName])
+  @@index([appSlug])
   @@map("scaling_state")
 }
 
 model ScalingEvent {
-  id          Int          @id @default(autoincrement())
-  appName     String       @map("app_name")
+  id          Int      @id @default(autoincrement())
+  appSlug     String   @map("app_slug")
   action      String
   reason      String
-  metricsJson Json         @map("metrics_json")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  state       ScalingState @relation(fields: [appName], references: [appName], onDelete: Cascade)
+  metricsJson Json     @map("metrics_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+  app         App      @relation(fields: [appSlug], references: [slug], onDelete: Cascade)
 
-  @@index([appName])
+  @@index([appSlug])
   @@index([createdAt])
   @@map("scaling_events")
 }

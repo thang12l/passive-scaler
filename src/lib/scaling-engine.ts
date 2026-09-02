@@ -1,4 +1,4 @@
-import type { AppConfig } from "./config";
+import type { ScalingConfig } from "./app-config";
 
 export type ScalingAction = "scale_up" | "scale_down" | null;
 
@@ -36,7 +36,7 @@ function secondsSince(date: Date | null, now: Date): number {
 export function makeScalingDecision(
   metrics: MetricsInput,
   state: ScalingStateInput,
-  config: AppConfig,
+  config: ScalingConfig,
   now: Date = new Date()
 ): ScalingDecision {
   const { currentDynos, lastScaleTime } = state;
