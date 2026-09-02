@@ -12,27 +12,26 @@ function hashSecret(secret) {
 }
 
 async function seedLegacyAppFromEnv() {
-  const slug = process.env.TARGET_HEROKU_APP?.trim();
+  const appName = process.env.TARGET_HEROKU_APP?.trim();
   const legacySecret = process.env.WEBHOOK_SECRET?.trim();
 
-  if (!slug || !legacySecret || legacySecret.length < 16) {
+  if (!appName || !legacySecret || legacySecret.length < 16) {
     return;
   }
 
-  const existing = await prisma.app.findUnique({ where: { slug } });
+  const existing = await prisma.app.findUnique({ where: { appName } });
   if (existing) {
-    console.log(`Legacy app "${slug}" already exists, skipping seed.`);
+    console.log(`Legacy app "${appName}" already exists, skipping seed.`);
     return;
   }
 
   await prisma.app.create({
     data: {
-      slug,
-      displayName: slug,
-      herokuAppName: slug,
+      slug: `app-${randomBytes(6).toString("hex")}`,
+      appName,
+      displayName: appName,
       webhookSecretHash: hashSecret(legacySecret),
-      scalingEnabled: true,
-      dryRun: true,
+      scalingEnabled: false,
       minDynos: Number(process.env.MIN_DYNOS ?? 1),
       maxDynos: Number(process.env.MAX_DYNOS ?? 10),
       responseTimeThresholdMs: Number(process.env.RESPONSE_TIME_THRESHOLD_MS ?? 2000),
@@ -48,7 +47,7 @@ async function seedLegacyAppFromEnv() {
     },
   });
 
-  console.log(`Seeded legacy app "${slug}" from environment variables.`);
+  console.log(`Seeded legacy app "${appName}" from environment variables.`);
 }
 
 async function seedDefaultAppIfEmpty() {
@@ -56,16 +55,15 @@ async function seedDefaultAppIfEmpty() {
   if (count > 0) return;
 
   const webhookSecret = generateWebhookSecret();
-  const slug = "example-app";
+  const appName = "example-app";
 
   await prisma.app.create({
     data: {
-      slug,
+      slug: `app-${randomBytes(6).toString("hex")}`,
+      appName,
       displayName: "Example App",
-      herokuAppName: slug,
       webhookSecretHash: hashSecret(webhookSecret),
-      scalingEnabled: true,
-      dryRun: true,
+      scalingEnabled: false,
       scalingState: {
         create: { currentDynos: 1 },
       },
@@ -73,7 +71,7 @@ async function seedDefaultAppIfEmpty() {
   });
 
   console.log("Created example app.");
-  console.log(`  slug: ${slug}`);
+  console.log(`  app_name: ${appName}`);
   console.log(`  webhook_secret: ${webhookSecret}`);
 }
 

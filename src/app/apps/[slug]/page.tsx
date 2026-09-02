@@ -10,10 +10,9 @@ import { adminFetch, getAdminToken } from "@/lib/admin-client";
 
 interface AppDetail {
   slug: string;
+  app_name: string;
   display_name: string;
-  heroku_app_name: string;
   scaling_enabled: boolean;
-  dry_run: boolean;
   live_scaling: boolean;
   min_dynos: number;
   max_dynos: number;
@@ -78,9 +77,7 @@ export default function EditAppPage() {
       method: "PATCH",
       body: JSON.stringify({
         display_name: values.display_name,
-        heroku_app_name: values.heroku_app_name,
         scaling_enabled: values.scaling_enabled,
-        dry_run: values.dry_run,
         min_dynos: values.min_dynos,
         max_dynos: values.max_dynos,
         response_time_threshold_ms: values.response_time_threshold_ms,
@@ -134,10 +131,9 @@ export default function EditAppPage() {
   }
 
   const formValues: AppFormValues = {
+    app_name: app.app_name,
     display_name: app.display_name,
-    heroku_app_name: app.heroku_app_name,
     scaling_enabled: app.scaling_enabled,
-    dry_run: app.dry_run,
     min_dynos: app.min_dynos,
     max_dynos: app.max_dynos,
     response_time_threshold_ms: app.response_time_threshold_ms,
@@ -153,7 +149,6 @@ export default function EditAppPage() {
         <h1 style={{ margin: 0 }}>{app.display_name}</h1>
         <StatusBadge
           scalingEnabled={app.scaling_enabled}
-          dryRun={app.dry_run}
           liveScaling={app.live_scaling}
         />
       </div>
@@ -169,7 +164,7 @@ export default function EditAppPage() {
         <p className="muted">Use this URL and the app&apos;s webhook secret in your reporter.</p>
         <p className="muted">URL</p>
         <div className="secret-box">{webhookUrl}</div>
-        <p className="muted">Payload field: <code>app_name: &quot;{app.slug}&quot;</code></p>
+        <p className="muted">Payload field: <code>app_name: &quot;{app.app_name}&quot;</code></p>
         <div className="actions">
           <button type="button" onClick={regenerateSecret}>
             Regenerate secret

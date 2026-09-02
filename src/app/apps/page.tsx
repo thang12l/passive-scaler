@@ -8,10 +8,9 @@ import { adminFetch, getAdminToken } from "@/lib/admin-client";
 
 interface AppListItem {
   slug: string;
+  app_name: string;
   display_name: string;
-  heroku_app_name: string;
   scaling_enabled: boolean;
-  dry_run: boolean;
   live_scaling: boolean;
   webhook_url: string;
 }
@@ -89,7 +88,6 @@ export default function AppsPage() {
             <thead>
               <tr>
                 <th>App</th>
-                <th>Heroku</th>
                 <th>Mode</th>
                 <th></th>
               </tr>
@@ -99,13 +97,11 @@ export default function AppsPage() {
                 <tr key={app.slug}>
                   <td>
                     <strong>{app.display_name}</strong>
-                    <div className="muted">{app.slug}</div>
+                    <div className="muted">{app.app_name}</div>
                   </td>
-                  <td>{app.heroku_app_name}</td>
                   <td>
                     <StatusBadge
                       scalingEnabled={app.scaling_enabled}
-                      dryRun={app.dry_run}
                       liveScaling={app.live_scaling}
                     />
                   </td>

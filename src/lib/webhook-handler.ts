@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicAppConfig, isLiveScaling } from "@/lib/app-config";
-import { findAppBySlugForWebhook } from "@/lib/apps-service";
+import { findAppByNameForWebhook } from "@/lib/apps-service";
 import { logger } from "@/lib/logger";
 import { getOrCreateState, processMetrics } from "@/lib/scaling-service";
 import {
@@ -30,9 +30,17 @@ export async function handleMetricsWebhook(request: NextRequest) {
     }
 
     const payload = parsed.data;
-    const app = await findAppBySlugForWebhook(payload.app_name);
+    const app = await findAppByNameForWebhook(payload.app_name);
     if (!app) {
-      return NextResponse.json({ success: false, error: "Unknown app" }, { status: 404 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Unknown app",
+          app_name: payload.app_name,
+          hint: "Create this app in the dashboard at /apps or ensure app_name matches the configured app name.",
+        },
+        { status: 404 }
+      );
     }
 
     const authHeader = request.headers.get("authorization");
@@ -56,16 +64,16 @@ export async function handleMetricsWebhook(request: NextRequest) {
       shouldScale: decision.shouldScale,
       action: decision.action,
       reason: decision.reason,
-      dryRun: decision.dryRun,
+      scaled: decision.scaled,
     });
 
     return NextResponse.json({
       success: true,
-      dry_run: decision.dryRun,
       scaling_enabled: decision.scalingEnabled,
+      scaled: decision.scaled,
       live_scaling: isLiveScaling(app),
       received: {
-        app_name: app.slug,
+        app_name: app.appName,
         process_type: metrics.processType ?? null,
         dyno: metrics.dyno ?? null,
         timestamp: metrics.reportedAt ?? null,

@@ -7,11 +7,9 @@ import { AdminLogin } from "@/components/admin-login";
 import { adminFetch, getAdminToken } from "@/lib/admin-client";
 
 const defaultValues: AppFormValues = {
-  slug: "",
+  app_name: "",
   display_name: "",
-  heroku_app_name: "",
-  scaling_enabled: true,
-  dry_run: true,
+  scaling_enabled: false,
   min_dynos: 1,
   max_dynos: 10,
   response_time_threshold_ms: 2000,
@@ -36,11 +34,9 @@ export default function NewAppPage() {
 
   async function handleSubmit(values: AppFormValues) {
     const payload = {
-      slug: values.slug,
+      app_name: values.app_name,
       display_name: values.display_name,
-      heroku_app_name: values.heroku_app_name || values.slug,
       scaling_enabled: values.scaling_enabled,
-      dry_run: values.dry_run,
       min_dynos: values.min_dynos,
       max_dynos: values.max_dynos,
       response_time_threshold_ms: values.response_time_threshold_ms,

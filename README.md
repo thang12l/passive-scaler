@@ -95,10 +95,10 @@ All routes require `Authorization: Bearer <ADMIN_SECRET>`.
 
 ### Per-app settings (in database)
 
-- `scaling_enabled` — master on/off
-- `dry_run` — run engine but never call Heroku
+- `scaling_enabled` — `false` records metrics only; `true` runs scaling decisions and calls Heroku when configured
 - Thresholds, cooldowns, min/max dynos
-- Optional per-app Heroku API key
+- Optional per-app Heroku API key (falls back to platform `HEROKU_API_KEY`)
+- `app_name` — used in webhook payloads and as the Heroku app identifier
 
 ### Legacy seed
 

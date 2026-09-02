@@ -9,11 +9,10 @@ datasource db {
 
 model App {
   slug                     String   @id
+  appName                  String   @unique @map("app_name")
   displayName              String   @map("display_name")
-  herokuAppName            String   @map("heroku_app_name")
   webhookSecretHash        String   @map("webhook_secret_hash")
-  scalingEnabled           Boolean  @default(true) @map("scaling_enabled")
-  dryRun                   Boolean  @default(true) @map("dry_run")
+  scalingEnabled           Boolean  @default(false) @map("scaling_enabled")
   minDynos                 Int      @default(1) @map("min_dynos")
   maxDynos                 Int      @default(10) @map("max_dynos")
   responseTimeThresholdMs  Int      @default(2000) @map("response_time_threshold_ms")
@@ -27,6 +26,7 @@ model App {
   scalingState ScalingState?
   events       ScalingEvent[]
 
+  @@index([appName])
   @@map("apps")
 }
 

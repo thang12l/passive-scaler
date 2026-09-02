@@ -31,25 +31,22 @@ async function herokuFetch(apiKey: string, path: string, init?: RequestInit): Pr
   return response;
 }
 
-export async function getWebDynoCount(
-  herokuAppName: string,
-  apiKey: string
-): Promise<number> {
-  const response = await herokuFetch(apiKey, `/apps/${herokuAppName}/formation/web`);
+export async function getWebDynoCount(appName: string, apiKey: string): Promise<number> {
+  const response = await herokuFetch(apiKey, `/apps/${appName}/formation/web`);
   const formation = (await response.json()) as HerokuFormation;
   return formation.quantity;
 }
 
 export async function scaleWebDynos(
-  herokuAppName: string,
+  appName: string,
   apiKey: string,
   quantity: number
 ): Promise<number> {
-  const response = await herokuFetch(apiKey, `/apps/${herokuAppName}/formation/web`, {
+  const response = await herokuFetch(apiKey, `/apps/${appName}/formation/web`, {
     method: "PATCH",
     body: JSON.stringify({ quantity }),
   });
   const formation = (await response.json()) as HerokuFormation;
-  logger.info("Scaled Heroku formation", { app: herokuAppName, quantity: formation.quantity });
+  logger.info("Scaled Heroku formation", { app: appName, quantity: formation.quantity });
   return formation.quantity;
 }

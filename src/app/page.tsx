@@ -23,7 +23,7 @@ export default function Home() {
             <code>POST /api/webhooks/metrics</code> — receive metrics and scale
           </li>
           <li>
-            <code>GET /api/status?app=&lt;slug&gt;</code> — current scaling state
+            <code>GET /api/status?app=&lt;app_name&gt;</code> — current scaling state
           </li>
         </ul>
       </div>

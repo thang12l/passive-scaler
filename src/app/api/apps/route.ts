@@ -57,7 +57,9 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return NextResponse.json({ success: false, error: "App slug already exists" }, { status: 409 });
+      const target = (error.meta?.target as string[] | undefined) ?? [];
+      const field = target.includes("app_name") ? "App name" : "Internal ID";
+      return NextResponse.json({ success: false, error: `${field} already exists` }, { status: 409 });
     }
     throw error;
   }

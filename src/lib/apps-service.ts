@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { z } from "zod";
 import type { App, Prisma } from "@prisma/client";
 import { prisma } from "./db";
@@ -9,12 +10,25 @@ export const slugSchema = z
   .max(63)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase alphanumeric with hyphens");
 
+export const appNameSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .regex(
+    /^[a-zA-Z0-9_-]+$/,
+    "App name must be alphanumeric with hyphens or underscores"
+  )
+  .transform((value) => value.toLowerCase());
+
+function generateInternalSlug(): string {
+  return `app-${randomBytes(6).toString("hex")}`;
+}
+
 const appFieldsSchema = z.object({
-  slug: slugSchema,
+  slug: slugSchema.optional(),
+  app_name: appNameSchema,
   display_name: z.string().min(1).max(255),
-  heroku_app_name: z.string().min(1).max(255).optional(),
-  scaling_enabled: z.boolean().optional().default(true),
-  dry_run: z.boolean().optional().default(true),
+  scaling_enabled: z.boolean().optional().default(false),
   min_dynos: z.coerce.number().int().min(1).optional().default(1),
   max_dynos: z.coerce.number().int().min(1).optional().default(10),
   response_time_threshold_ms: z.coerce.number().int().positive().optional().default(2000),
@@ -33,11 +47,10 @@ const dynoRangeRefine = {
   path: ["min_dynos"] as const,
 };
 
-export const createAppSchema = appFieldsSchema
-  .refine(dynoRangeRefine.refine, {
-    message: dynoRangeRefine.message,
-    path: [...dynoRangeRefine.path],
-  });
+export const createAppSchema = appFieldsSchema.refine(dynoRangeRefine.refine, {
+  message: dynoRangeRefine.message,
+  path: [...dynoRangeRefine.path],
+});
 
 export const updateAppSchema = appFieldsSchema
   .omit({ slug: true })
@@ -58,18 +71,23 @@ export async function getAppBySlug(slug: string): Promise<App | null> {
   return prisma.app.findUnique({ where: { slug } });
 }
 
+export async function getAppByName(appName: string): Promise<App | null> {
+  return prisma.app.findUnique({
+    where: { appName: appName.toLowerCase() },
+  });
+}
+
 export async function createApp(input: CreateAppInput): Promise<{ app: App; webhookSecret: string }> {
   const webhookSecret = generateWebhookSecret();
-  const herokuAppName = input.heroku_app_name?.trim() || input.slug;
+  const slug = input.slug ?? generateInternalSlug();
 
   const app = await prisma.app.create({
     data: {
-      slug: input.slug,
+      slug,
+      appName: input.app_name,
       displayName: input.display_name,
-      herokuAppName,
       webhookSecretHash: hashSecret(webhookSecret),
       scalingEnabled: input.scaling_enabled,
-      dryRun: input.dry_run,
       minDynos: input.min_dynos,
       maxDynos: input.max_dynos,
       responseTimeThresholdMs: input.response_time_threshold_ms,
@@ -91,10 +109,9 @@ export async function createApp(input: CreateAppInput): Promise<{ app: App; webh
 export async function updateApp(slug: string, input: UpdateAppInput): Promise<App> {
   const data: Prisma.AppUpdateInput = {};
 
+  if (input.app_name !== undefined) data.appName = input.app_name;
   if (input.display_name !== undefined) data.displayName = input.display_name;
-  if (input.heroku_app_name !== undefined) data.herokuAppName = input.heroku_app_name;
   if (input.scaling_enabled !== undefined) data.scalingEnabled = input.scaling_enabled;
-  if (input.dry_run !== undefined) data.dryRun = input.dry_run;
   if (input.min_dynos !== undefined) data.minDynos = input.min_dynos;
   if (input.max_dynos !== undefined) data.maxDynos = input.max_dynos;
   if (input.response_time_threshold_ms !== undefined) {
@@ -131,6 +148,6 @@ export async function regenerateAppWebhookSecret(
   return { app, webhookSecret };
 }
 
-export async function findAppBySlugForWebhook(slug: string): Promise<App | null> {
-  return prisma.app.findUnique({ where: { slug } });
+export async function findAppByNameForWebhook(appName: string): Promise<App | null> {
+  return getAppByName(appName);
 }

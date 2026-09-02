@@ -3,11 +3,9 @@
 import { FormEvent, useState } from "react";
 
 export interface AppFormValues {
-  slug?: string;
+  app_name?: string;
   display_name: string;
-  heroku_app_name: string;
   scaling_enabled: boolean;
-  dry_run: boolean;
   min_dynos: number;
   max_dynos: number;
   response_time_threshold_ms: number;
@@ -48,18 +46,18 @@ export function AppForm({ initial, mode, onSubmit, submitLabel }: AppFormProps) 
 
   return (
     <form onSubmit={handleSubmit} className="card">
-      {mode === "create" && (
-        <>
-          <label htmlFor="slug">Slug (used as app_name in webhook payload)</label>
-          <input
-            id="slug"
-            type="text"
-            value={values.slug ?? ""}
-            onChange={(e) => updateField("slug", e.target.value.toLowerCase())}
-            pattern="[a-z0-9]+(-[a-z0-9]+)*"
-            required
-          />
-        </>
+      <label htmlFor="app_name">App name (sent as app_name in webhook payload and used for Heroku API)</label>
+      <input
+        id="app_name"
+        type="text"
+        value={values.app_name ?? ""}
+        onChange={(e) => updateField("app_name", e.target.value.toLowerCase())}
+        pattern="[a-zA-Z0-9_-]+"
+        required
+        readOnly={mode === "edit"}
+      />
+      {mode === "edit" && (
+        <p className="muted">App name cannot be changed after creation.</p>
       )}
 
       <label htmlFor="display_name">Display name</label>
@@ -71,33 +69,14 @@ export function AppForm({ initial, mode, onSubmit, submitLabel }: AppFormProps) 
         required
       />
 
-      <label htmlFor="heroku_app_name">Heroku app name</label>
-      <input
-        id="heroku_app_name"
-        type="text"
-        value={values.heroku_app_name}
-        onChange={(e) => updateField("heroku_app_name", e.target.value)}
-        required
-      />
-
-      <div className="grid-2">
-        <label>
-          <input
-            type="checkbox"
-            checked={values.scaling_enabled}
-            onChange={(e) => updateField("scaling_enabled", e.target.checked)}
-          />
-          Scaling enabled
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={values.dry_run}
-            onChange={(e) => updateField("dry_run", e.target.checked)}
-          />
-          Dry run (never call Heroku)
-        </label>
-      </div>
+      <label>
+        <input
+          type="checkbox"
+          checked={values.scaling_enabled}
+          onChange={(e) => updateField("scaling_enabled", e.target.checked)}
+        />
+        Scaling enabled (uncheck to record metrics only)
+      </label>
 
       <h3>Thresholds</h3>
       <div className="grid-2">

@@ -37,15 +37,14 @@ export function resolveHerokuApiKey(app: App): string | null {
 }
 
 export function isLiveScaling(app: App): boolean {
-  return app.scalingEnabled && !app.dryRun && resolveHerokuApiKey(app) !== null;
+  return app.scalingEnabled && resolveHerokuApiKey(app) !== null;
 }
 
 export function getPublicAppConfig(app: App) {
   const scaling = appToScalingConfig(app);
   return {
     scaling_enabled: app.scalingEnabled,
-    dry_run: app.dryRun,
-    heroku_app_name: app.herokuAppName,
+    app_name: app.appName,
     live_scaling: isLiveScaling(app),
     min_dynos: scaling.MIN_DYNOS,
     max_dynos: scaling.MAX_DYNOS,
@@ -65,17 +64,16 @@ export function getPublicAppConfig(app: App) {
 export function serializeApp(app: App) {
   return {
     slug: app.slug,
+    app_name: app.appName,
     display_name: app.displayName,
-    heroku_app_name: app.herokuAppName,
     scaling_enabled: app.scalingEnabled,
-    dry_run: app.dryRun,
     min_dynos: app.minDynos,
     max_dynos: app.maxDynos,
     response_time_threshold_ms: app.responseTimeThresholdMs,
     memory_threshold_percent: Number(app.memoryThresholdPercent),
     scale_up_cooldown_seconds: app.scaleUpCooldownSeconds,
     scale_down_cooldown_seconds: app.scaleDownCooldownSeconds,
-    has_heroku_api_key: Boolean(app.herokuApiKey?.trim()),
+    has_heroku_api_key: Boolean(app.herokuApiKey?.trim()) || Boolean(getPlatformHerokuApiKey()),
     live_scaling: isLiveScaling(app),
     created_at: app.createdAt.toISOString(),
     updated_at: app.updatedAt.toISOString(),
