@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ScalingState {
+  id                 Int       @id @default(autoincrement())
+  appName            String    @unique @map("app_name")
+  lastScaleTime      DateTime? @map("last_scale_time")
+  lastAction         String?   @map("last_action")
+  currentDynos       Int?      @map("current_dynos")
+  lastResponseTime   Decimal?  @map("last_response_time") @db.Decimal(10, 2)
+  lastMemoryPercent  Decimal?  @map("last_memory_percent") @db.Decimal(5, 2)
+  scalingInProgress  Boolean   @default(false) @map("scaling_in_progress")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  events ScalingEvent[]
+
+  @@index([appName])
+  @@map("scaling_state")
+}
+
+model ScalingEvent {
+  id          Int          @id @default(autoincrement())
+  appName     String       @map("app_name")
+  action      String
+  reason      String
+  metricsJson Json         @map("metrics_json")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  state       ScalingState @relation(fields: [appName], references: [appName], onDelete: Cascade)
+
+  @@index([appName])
+  @@index([createdAt])
+  @@map("scaling_events")
+}
