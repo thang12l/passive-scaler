@@ -1,4 +1,4 @@
-import { getConfig } from "./config";
+import { getConfig, isHerokuConfigured } from "./config";
 import { logger } from "./logger";
 
 const HEROKU_API_BASE = "https://api.heroku.com";
@@ -33,14 +33,22 @@ async function herokuFetch(path: string, init?: RequestInit): Promise<Response> 
   return response;
 }
 
-export async function getWebDynoCount(appName?: string): Promise<number> {
+export async function getWebDynoCount(appName?: string): Promise<number | null> {
+  if (!isHerokuConfigured()) {
+    return null;
+  }
+
   const app = appName ?? getConfig().TARGET_HEROKU_APP;
   const response = await herokuFetch(`/apps/${app}/formation/web`);
   const formation = (await response.json()) as HerokuFormation;
   return formation.quantity;
 }
 
-export async function scaleWebDynos(quantity: number, appName?: string): Promise<number> {
+export async function scaleWebDynos(quantity: number, appName?: string): Promise<number | null> {
+  if (!isHerokuConfigured()) {
+    return null;
+  }
+
   const app = appName ?? getConfig().TARGET_HEROKU_APP;
   const response = await herokuFetch(`/apps/${app}/formation/web`, {
     method: "PATCH",

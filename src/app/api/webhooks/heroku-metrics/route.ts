@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getConfig, getPublicConfig } from "@/lib/config";
+import { getConfig, getPublicConfig, isHerokuConfigured } from "@/lib/config";
 import { logger } from "@/lib/logger";
 import { getOrCreateState, processMetrics } from "@/lib/scaling-service";
 import {
@@ -47,6 +47,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      dry_run: decision.dryRun,
+      heroku_enabled: isHerokuConfigured(),
       decision: {
         should_scale: decision.shouldScale,
         action: decision.action,

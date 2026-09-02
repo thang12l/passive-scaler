@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: passive
+      POSTGRES_PASSWORD: passive
+      POSTGRES_DB: passive_scaler
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U passive -d passive_scaler"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      target: dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.docker
+    environment:
+      DATABASE_URL: postgresql://passive:passive@db:5432/passive_scaler
+      NODE_ENV: development
+    volumes:
+      - .:/app
+      - app_node_modules:/app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  app_node_modules:

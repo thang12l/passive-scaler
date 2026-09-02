@@ -1,7 +1,9 @@
 import { z } from "zod";
 
+const PLACEHOLDER_HEROKU_API_KEYS = new Set(["", "your-heroku-api-key", "changeme"]);
+
 const configSchema = z.object({
-  HEROKU_API_KEY: z.string().min(1),
+  HEROKU_API_KEY: z.string().optional().default(""),
   TARGET_HEROKU_APP: z.string().min(1),
   WEBHOOK_SECRET: z.string().min(16),
   MIN_DYNOS: z.coerce.number().int().min(1).default(1),
@@ -14,9 +16,15 @@ const configSchema = z.object({
 });
 
 export type AppConfig = z.infer<typeof configSchema> & {
+  herokuEnabled: boolean;
   scaleDownResponseTimeThresholdMs: number;
   scaleDownMemoryThresholdPercent: number;
 };
+
+export function isHerokuConfigured(config?: AppConfig): boolean {
+  const cfg = config ?? getConfig();
+  return cfg.herokuEnabled;
+}
 
 let cachedConfig: AppConfig | null = null;
 
@@ -36,8 +44,11 @@ export function getConfig(): AppConfig {
     throw new Error("MIN_DYNOS cannot be greater than MAX_DYNOS");
   }
 
+  const herokuEnabled = !PLACEHOLDER_HEROKU_API_KEYS.has(base.HEROKU_API_KEY.trim());
+
   cachedConfig = {
     ...base,
+    herokuEnabled,
     scaleDownResponseTimeThresholdMs: base.RESPONSE_TIME_THRESHOLD_MS * 0.5,
     scaleDownMemoryThresholdPercent: base.MEMORY_THRESHOLD_PERCENT * 0.5,
   };
@@ -48,6 +59,7 @@ export function getConfig(): AppConfig {
 export function getPublicConfig() {
   const config = getConfig();
   return {
+    heroku_enabled: config.herokuEnabled,
     min_dynos: config.MIN_DYNOS,
     max_dynos: config.MAX_DYNOS,
     thresholds: {

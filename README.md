@@ -4,6 +4,18 @@ Push-based auto-scaling service. A target app POSTs metrics to a Vercel webhook;
 
 ## Setup
 
+### Docker (recommended for local)
+
+```bash
+cp .env.docker.example .env.docker
+# Edit .env.docker with your Heroku API key and app name
+docker compose up --build
+```
+
+App runs at http://localhost:3000. Postgres is exposed on port 5432.
+
+### Manual
+
 ```bash
 npm install
 cp .env.example .env.local
@@ -49,7 +61,11 @@ Returns current scaling state. Requires `Authorization: Bearer <WEBHOOK_SECRET>`
 
 ## Environment Variables
 
-See `.env.example` for all required variables.
+See `.env.example` for manual setup or `.env.docker.example` for Docker Compose.
+
+### Dry-run mode (no Heroku API key)
+
+Leave `HEROKU_API_KEY` empty or unset. The app still accepts metrics, runs the scaling decision engine, and persists state locally — but it does **not** call the Heroku API. The webhook response includes `dry_run: true` when scaling is simulated.
 
 ## Architecture
 
