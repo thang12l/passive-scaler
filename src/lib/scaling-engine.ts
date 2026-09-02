@@ -5,6 +5,14 @@ export type ScalingAction = "scale_up" | "scale_down" | null;
 export interface MetricsInput {
   avgResponseTime: number;
   memoryPercent: number;
+  processType?: string;
+  dyno?: string;
+  requestsPerMinute?: number;
+  sampleCount?: number;
+  queueSize?: number;
+  queueDepths?: Record<string, number>;
+  queueLatencies?: Record<string, number>;
+  reportedAt?: string;
 }
 
 export interface ScalingStateInput {

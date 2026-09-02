@@ -3,43 +3,57 @@ import { getConfig, getPublicConfig, isHerokuConfigured } from "@/lib/config";
 import { logger } from "@/lib/logger";
 import { getOrCreateState, processMetrics } from "@/lib/scaling-service";
 import {
-  metricsPayloadSchema,
+  normalizeMetricsForScaling,
+  parseMetricsPayload,
   validateAppName,
   validateWebhookSecret,
 } from "@/lib/validator";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const authHeader = request.headers.get("authorization");
-
-    if (!validateWebhookSecret(authHeader, body.secret_token)) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-    }
-
-    const parsed = metricsPayloadSchema.safeParse(body);
-    if (!parsed.success) {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
       return NextResponse.json(
-        { success: false, error: "Invalid payload", details: parsed.error.flatten() },
+        { success: false, error: "Request body must be valid JSON" },
         { status: 400 }
       );
     }
 
-    const { app_name, avg_response_time, memory_percent } = parsed.data;
+    const authHeader = request.headers.get("authorization");
+    const bodySecret =
+      body !== null && typeof body === "object" && "secret_token" in body
+        ? (body as { secret_token?: string }).secret_token
+        : undefined;
 
-    if (!validateAppName(app_name)) {
+    if (!validateWebhookSecret(authHeader, bodySecret)) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const parsed = parseMetricsPayload(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: parsed.error, details: parsed.details },
+        { status: 400 }
+      );
+    }
+
+    const payload = parsed.data;
+    const metrics = normalizeMetricsForScaling(payload);
+
+    if (!validateAppName(payload.app_name)) {
       return NextResponse.json({ success: false, error: "Unknown app" }, { status: 403 });
     }
 
-    await getOrCreateState(app_name);
+    await getOrCreateState(payload.app_name);
 
-    const decision = await processMetrics(app_name, {
-      avgResponseTime: avg_response_time,
-      memoryPercent: memory_percent,
-    });
+    const decision = await processMetrics(payload.app_name, metrics);
 
     logger.info("Scaling decision", {
-      appName: app_name,
+      appName: payload.app_name,
+      processType: metrics.processType,
+      dyno: metrics.dyno,
       shouldScale: decision.shouldScale,
       action: decision.action,
       reason: decision.reason,
@@ -49,6 +63,12 @@ export async function POST(request: NextRequest) {
       success: true,
       dry_run: decision.dryRun,
       heroku_enabled: isHerokuConfigured(),
+      received: {
+        app_name: payload.app_name,
+        process_type: metrics.processType ?? null,
+        dyno: metrics.dyno ?? null,
+        timestamp: metrics.reportedAt ?? null,
+      },
       decision: {
         should_scale: decision.shouldScale,
         action: decision.action,
@@ -74,5 +94,21 @@ export async function GET() {
     method: "POST",
     target_app: getConfig().TARGET_HEROKU_APP,
     config: getPublicConfig(),
+    accepted_fields: {
+      required: ["app_name", "timestamp"],
+      optional: [
+        "process_type",
+        "dyno",
+        "avg_response_time",
+        "avg_queue_time",
+        "memory_percent",
+        "requests_per_minute",
+        "sample_count",
+        "queue_size",
+        "queue_depths",
+        "queue_latencies",
+        "secret_token",
+      ],
+    },
   });
 }
