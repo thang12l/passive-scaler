@@ -94,13 +94,14 @@ export async function handleMetricsWebhook(request: NextRequest) {
     const decision = await processMetrics(app, metrics);
 
     logger.info("Scaling decision", {
-      appSlug: app.slug,
+      appName: app.appName,
       processType: decision.processType,
       dyno: metrics.dyno,
       shouldScale: decision.shouldScale,
       action: decision.action,
       reason: decision.reason,
       scaled: decision.scaled,
+      executionStatus: decision.executionStatus,
     });
 
     return NextResponse.json({
@@ -122,6 +123,7 @@ export async function handleMetricsWebhook(request: NextRequest) {
         current_dynos: decision.currentDynos,
         target_dynos: decision.targetDynos,
         reason: decision.reason,
+        execution_status: decision.executionStatus,
       },
     });
   } catch (error) {

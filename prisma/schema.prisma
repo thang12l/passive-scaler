@@ -61,14 +61,18 @@ model FormationState {
 }
 
 model ScalingEvent {
-  id          Int      @id @default(autoincrement())
-  appSlug     String   @map("app_slug")
-  processType String   @map("process_type")
-  action      String
-  reason      String
-  metricsJson Json     @map("metrics_json")
-  createdAt   DateTime @default(now()) @map("created_at")
-  app         App      @relation(fields: [appSlug], references: [slug], onDelete: Cascade)
+  id              Int      @id @default(autoincrement())
+  appSlug         String   @map("app_slug")
+  processType     String   @map("process_type")
+  action          String
+  reason          String
+  metricsJson     Json     @map("metrics_json")
+  executionStatus String   @default("succeeded") @map("execution_status")
+  executionError  String?  @map("execution_error")
+  targetDynos     Int?     @map("target_dynos")
+  resultingDynos  Int?     @map("resulting_dynos")
+  createdAt       DateTime @default(now()) @map("created_at")
+  app             App      @relation(fields: [appSlug], references: [slug], onDelete: Cascade)
 
   @@index([appSlug])
   @@index([appSlug, processType])

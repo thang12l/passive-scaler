@@ -8,6 +8,10 @@ interface ScalingEventRow {
   process_type: string;
   action: string;
   reason: string;
+  execution_status: string;
+  execution_error: string | null;
+  target_dynos: number | null;
+  resulting_dynos: number | null;
   created_at: string;
   metrics: {
     dyno: string | null;
@@ -16,6 +20,13 @@ interface ScalingEventRow {
     queue_size: number | null;
     scaled: boolean | null;
   } | null;
+}
+
+function executionBadge(status: string) {
+  if (status === "succeeded") return { className: "badge live", label: "Succeeded" };
+  if (status === "failed") return { className: "badge fail", label: "Failed" };
+  if (status === "not_executed") return { className: "badge dry", label: "Not executed" };
+  return { className: "badge off", label: status };
 }
 
 export function EventsTable({ slug }: { slug: string }) {
@@ -85,33 +96,48 @@ export function EventsTable({ slug }: { slug: string }) {
               <th>Time</th>
               <th>Type</th>
               <th>Action</th>
+              <th>Execution</th>
               <th>Reason</th>
             </tr>
           </thead>
           <tbody>
-            {events.map((event) => (
-              <tr key={event.id}>
-                <td>{new Date(event.created_at).toLocaleString()}</td>
-                <td>{event.process_type}</td>
-                <td>{event.action}</td>
-                <td>
-                  <div>{event.reason}</div>
-                  {event.metrics && (
-                    <div className="muted" style={{ fontSize: "0.8rem" }}>
-                      {event.metrics.dyno ? `${event.metrics.dyno} · ` : ""}
-                      {event.metrics.queue_size != null
-                        ? `queue ${event.metrics.queue_size}`
-                        : event.metrics.avg_response_time != null
-                          ? `${event.metrics.avg_response_time}ms`
+            {events.map((event) => {
+              const execution = executionBadge(event.execution_status);
+              return (
+                <tr key={event.id}>
+                  <td>{new Date(event.created_at).toLocaleString()}</td>
+                  <td>{event.process_type}</td>
+                  <td>{event.action}</td>
+                  <td>
+                    <span className={execution.className}>{execution.label}</span>
+                    {event.execution_error && (
+                      <div className="muted" style={{ fontSize: "0.8rem" }}>
+                        {event.execution_error}
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <div>{event.reason}</div>
+                    {event.metrics && (
+                      <div className="muted" style={{ fontSize: "0.8rem" }}>
+                        {event.metrics.dyno ? `${event.metrics.dyno} · ` : ""}
+                        {event.metrics.queue_size != null
+                          ? `queue ${event.metrics.queue_size}`
+                          : event.metrics.avg_response_time != null
+                            ? `${event.metrics.avg_response_time}ms`
+                            : ""}
+                        {event.metrics.memory_percent != null
+                          ? ` · mem ${event.metrics.memory_percent}%`
                           : ""}
-                      {event.metrics.memory_percent != null
-                        ? ` · mem ${event.metrics.memory_percent}%`
-                        : ""}
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
+                        {event.target_dynos != null
+                          ? ` · target ${event.target_dynos}`
+                          : ""}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}

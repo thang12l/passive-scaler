@@ -130,6 +130,11 @@ button:disabled {
   color: #bbb;
 }
 
+.badge.fail {
+  background: #4d1f1f;
+  color: #f0a0a0;
+}
+
 .alert {
   padding: 0.85rem 1rem;
   border-radius: 6px;

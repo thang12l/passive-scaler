@@ -162,12 +162,25 @@ export function serializeFormationState(formation: {
   };
 }
 
+export const SCALING_EXECUTION_STATUS = {
+  NOT_EXECUTED: "not_executed",
+  FAILED: "failed",
+  SUCCEEDED: "succeeded",
+} as const;
+
+export type ScalingExecutionStatus =
+  (typeof SCALING_EXECUTION_STATUS)[keyof typeof SCALING_EXECUTION_STATUS];
+
 export function serializeScalingEvent(event: {
   id: number;
   processType: string;
   action: string;
   reason: string;
   metricsJson: unknown;
+  executionStatus: string;
+  executionError: string | null;
+  targetDynos: number | null;
+  resultingDynos: number | null;
   createdAt: Date;
 }) {
   const metrics = event.metricsJson as Record<string, unknown> | null;
@@ -176,6 +189,10 @@ export function serializeScalingEvent(event: {
     process_type: event.processType,
     action: event.action,
     reason: event.reason,
+    execution_status: event.executionStatus,
+    execution_error: event.executionError,
+    target_dynos: event.targetDynos,
+    resulting_dynos: event.resultingDynos,
     created_at: event.createdAt.toISOString(),
     metrics: metrics
       ? {

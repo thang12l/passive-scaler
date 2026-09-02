@@ -1,9 +1,11 @@
 import type { App } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import {
+  SCALING_EXECUTION_STATUS,
   appToWebScalingConfig,
   appToWorkerScalingConfig,
   resolveHerokuApiKey,
+  type ScalingExecutionStatus,
 } from "./app-config";
 import { prisma } from "./db";
 import { getFormationCount, scaleFormation } from "./heroku-client";
@@ -20,6 +22,7 @@ export interface ProcessMetricsResult extends ScalingDecision {
   processType: ProcessType;
   scalingEnabled: boolean;
   scaled: boolean;
+  executionStatus: ScalingExecutionStatus | null;
 }
 
 function minDynosForProcess(app: App, processType: ProcessType): number {
@@ -90,21 +93,30 @@ function makeDecision(app: App, metrics: MetricsInput, state: { currentDynos: nu
   return makeWebScalingDecision(metrics, stateInput, appToWebScalingConfig(app));
 }
 
-async function recordScalingAction(
+async function recordScalingDecision(
   app: App,
   processType: ProcessType,
   decision: ScalingDecision,
   metrics: MetricsInput,
-  newQuantity: number,
-  reason: string
+  outcome: {
+    status: ScalingExecutionStatus;
+    error?: string | null;
+    resultingDynos?: number | null;
+  }
 ): Promise<ProcessMetricsResult> {
+  const succeeded = outcome.status === SCALING_EXECUTION_STATUS.SUCCEEDED;
+  const resultingDynos = outcome.resultingDynos ?? null;
+  const reason = outcome.error ? `${decision.reason} (${outcome.error})` : decision.reason;
+
   await prisma.formationState.update({
     where: { appSlug_processType: { appSlug: app.slug, processType } },
     data: {
-      currentDynos: newQuantity,
       lastScaleTime: new Date(),
-      lastAction: decision.action,
-      scalingInProgress: false,
+      ...(succeeded
+        ? { currentDynos: resultingDynos!, lastAction: decision.action }
+        : resultingDynos != null
+          ? { currentDynos: resultingDynos }
+          : {}),
     },
   });
 
@@ -113,27 +125,33 @@ async function recordScalingAction(
       appSlug: app.slug,
       processType,
       action: decision.action!,
-      reason,
-      metricsJson: { ...metrics, scaled: true } as unknown as Prisma.InputJsonValue,
+      reason: decision.reason,
+      metricsJson: { ...metrics, scaled: succeeded } as unknown as Prisma.InputJsonValue,
+      executionStatus: outcome.status,
+      executionError: outcome.error ?? null,
+      targetDynos: decision.targetDynos,
+      resultingDynos,
     },
   });
 
-  logger.info("Scaling action completed", {
+  logger.info("Scaling decision recorded", {
     appSlug: app.slug,
     processType,
     action: decision.action,
     from: decision.currentDynos,
-    to: newQuantity,
+    to: decision.targetDynos,
+    executionStatus: outcome.status,
+    resultingDynos,
   });
 
   return {
     ...decision,
     processType,
-    currentDynos: newQuantity,
-    targetDynos: newQuantity,
+    currentDynos: succeeded && resultingDynos != null ? resultingDynos : decision.currentDynos,
     reason,
     scalingEnabled: true,
-    scaled: true,
+    scaled: succeeded,
+    executionStatus: outcome.status,
   };
 }
 
@@ -169,6 +187,7 @@ export async function processMetrics(app: App, metrics: MetricsInput): Promise<P
       reason: `${processType} scaling disabled — metrics recorded only`,
       scalingEnabled: false,
       scaled: false,
+      executionStatus: null,
     };
   }
 
@@ -182,6 +201,7 @@ export async function processMetrics(app: App, metrics: MetricsInput): Promise<P
       reason: "Scaling already in progress",
       scalingEnabled: true,
       scaled: false,
+      executionStatus: null,
     };
   }
 
@@ -209,7 +229,7 @@ export async function processMetrics(app: App, metrics: MetricsInput): Promise<P
   const decision = makeDecision(app, metrics, { currentDynos, lastScaleTime: state.lastScaleTime }, processType);
 
   if (!decision.shouldScale || !decision.action) {
-    return { ...decision, processType, scalingEnabled: true, scaled: false };
+    return { ...decision, processType, scalingEnabled: true, scaled: false, executionStatus: null };
   }
 
   const locked = await acquireScalingLock(app.slug, processType);
@@ -223,28 +243,44 @@ export async function processMetrics(app: App, metrics: MetricsInput): Promise<P
       reason: "Scaling already in progress",
       scalingEnabled: true,
       scaled: false,
-    };
-  }
-
-  if (!apiKey) {
-    await releaseScalingLock(app.slug, processType);
-    return {
-      ...decision,
-      processType,
-      shouldScale: false,
-      action: null,
-      reason: `${decision.reason} (Heroku API key not configured)`,
-      scalingEnabled: true,
-      scaled: false,
+      executionStatus: null,
     };
   }
 
   try {
-    const newQuantity = await scaleFormation(app.appName, apiKey, processType, decision.targetDynos);
-    return recordScalingAction(app, processType, decision, metrics, newQuantity, decision.reason);
-  } catch (error) {
+    if (!apiKey) {
+      return recordScalingDecision(app, processType, decision, metrics, {
+        status: SCALING_EXECUTION_STATUS.NOT_EXECUTED,
+        error: "Heroku API key not configured",
+      });
+    }
+
+    try {
+      const newQuantity = await scaleFormation(
+        app.appName,
+        apiKey,
+        processType,
+        decision.targetDynos
+      );
+      if (newQuantity !== decision.targetDynos) {
+        return recordScalingDecision(app, processType, decision, metrics, {
+          status: SCALING_EXECUTION_STATUS.FAILED,
+          error: `Heroku formation quantity was ${newQuantity}, expected ${decision.targetDynos}`,
+          resultingDynos: newQuantity,
+        });
+      }
+      return recordScalingDecision(app, processType, decision, metrics, {
+        status: SCALING_EXECUTION_STATUS.SUCCEEDED,
+        resultingDynos: newQuantity,
+      });
+    } catch (error) {
+      return recordScalingDecision(app, processType, decision, metrics, {
+        status: SCALING_EXECUTION_STATUS.FAILED,
+        error: error instanceof Error ? error.message : "Heroku API call failed",
+      });
+    }
+  } finally {
     await releaseScalingLock(app.slug, processType);
-    throw error;
   }
 }
 
