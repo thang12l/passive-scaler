@@ -183,14 +183,18 @@ export function AppForm({ initial, mode, onSubmit, submitLabel }: AppFormProps) 
           />
         </div>
         <div>
-          <label htmlFor="worker_queue_size_threshold">Queue size threshold</label>
+          <label htmlFor="worker_queue_size_threshold">Jobs per dyno (queue ratio)</label>
           <input
             id="worker_queue_size_threshold"
             type="number"
-            min={0}
+            min={1}
             value={values.worker_queue_size_threshold}
             onChange={(e) => updateField("worker_queue_size_threshold", Number(e.target.value))}
           />
+          <p className="muted">
+            Target dynos = ceil(queue size / this value), then clamped to min/max.
+            Example: 10 means queue 11–20 → 2 dynos, 21–30 → 3.
+          </p>
         </div>
         <div>
           <label htmlFor="worker_queue_latency_threshold_ms">Queue latency threshold (ms)</label>

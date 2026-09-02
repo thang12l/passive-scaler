@@ -100,8 +100,8 @@ All routes require `Authorization: Bearer <ADMIN_SECRET>`.
 - `scaling_enabled`, min/max dynos, response time & memory thresholds, cooldowns
 
 **Worker formation** (`process_type: "worker"`)
-- `worker_scaling_enabled`, min/max worker dynos
-- Queue size & latency thresholds, memory threshold, cooldowns
+- `worker_scaling_enabled`, min/max worker dynos, cooldowns
+- `worker_queue_size_threshold` — jobs per dyno. Target dynos = ceil(queue size / ratio), clamped to min/max. Example: 10 means queue > 10 → 2 dynos, queue > 20 → 3.
 
 - Optional per-app Heroku API key (falls back to platform `HEROKU_API_KEY`)
 - `app_name` — used in webhook payloads and as the Heroku app identifier

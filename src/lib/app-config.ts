@@ -16,14 +16,9 @@ export interface WebScalingConfig {
 export interface WorkerScalingConfig {
   MIN_DYNOS: number;
   MAX_DYNOS: number;
-  QUEUE_SIZE_THRESHOLD: number;
-  QUEUE_LATENCY_THRESHOLD_MS: number;
-  MEMORY_THRESHOLD_PERCENT: number;
+  JOBS_PER_DYNO: number;
   SCALE_UP_COOLDOWN_SECONDS: number;
   SCALE_DOWN_COOLDOWN_SECONDS: number;
-  scaleDownQueueSizeThreshold: number;
-  scaleDownQueueLatencyThresholdMs: number;
-  scaleDownMemoryThresholdPercent: number;
 }
 
 const PLACEHOLDER_HEROKU_KEYS = new Set(["", "your-heroku-api-key", "changeme"]);
@@ -45,19 +40,12 @@ export function appToWebScalingConfig(app: App): WebScalingConfig {
 }
 
 export function appToWorkerScalingConfig(app: App): WorkerScalingConfig {
-  const memoryThresholdPercent = Number(app.workerMemoryThresholdPercent);
-
   return {
     MIN_DYNOS: app.workerMinDynos,
     MAX_DYNOS: app.workerMaxDynos,
-    QUEUE_SIZE_THRESHOLD: app.workerQueueSizeThreshold,
-    QUEUE_LATENCY_THRESHOLD_MS: app.workerQueueLatencyThresholdMs,
-    MEMORY_THRESHOLD_PERCENT: memoryThresholdPercent,
+    JOBS_PER_DYNO: Math.max(1, app.workerQueueSizeThreshold),
     SCALE_UP_COOLDOWN_SECONDS: app.workerScaleUpCooldownSeconds,
     SCALE_DOWN_COOLDOWN_SECONDS: app.workerScaleDownCooldownSeconds,
-    scaleDownQueueSizeThreshold: app.workerQueueSizeThreshold * 0.5,
-    scaleDownQueueLatencyThresholdMs: app.workerQueueLatencyThresholdMs * 0.5,
-    scaleDownMemoryThresholdPercent: memoryThresholdPercent * 0.5,
   };
 }
 
@@ -108,9 +96,10 @@ export function getPublicAppConfig(app: App) {
       min_dynos: worker.MIN_DYNOS,
       max_dynos: worker.MAX_DYNOS,
       thresholds: {
-        queue_size: worker.QUEUE_SIZE_THRESHOLD,
-        queue_latency_ms: worker.QUEUE_LATENCY_THRESHOLD_MS,
-        memory_percent: worker.MEMORY_THRESHOLD_PERCENT,
+        jobs_per_dyno: worker.JOBS_PER_DYNO,
+        queue_size: worker.JOBS_PER_DYNO,
+        queue_latency_ms: app.workerQueueLatencyThresholdMs,
+        memory_percent: Number(app.workerMemoryThresholdPercent),
       },
       cooldowns: {
         scale_up_seconds: worker.SCALE_UP_COOLDOWN_SECONDS,

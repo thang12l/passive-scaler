@@ -33,14 +33,6 @@ function secondsSince(date: Date | null, now: Date): number {
   return (now.getTime() - date.getTime()) / 1000;
 }
 
-function maxQueueLatency(metrics: MetricsInput): number {
-  if (metrics.queueLatencies) {
-    const values = Object.values(metrics.queueLatencies);
-    if (values.length > 0) return Math.max(...values);
-  }
-  return metrics.avgResponseTime;
-}
-
 export function makeWebScalingDecision(
   metrics: MetricsInput,
   state: ScalingStateInput,
@@ -114,64 +106,50 @@ export function makeWorkerScalingDecision(
   const { currentDynos, lastScaleTime } = state;
   const secondsSinceLastScale = secondsSince(lastScaleTime, now);
   const queueSize = metrics.queueSize ?? 0;
-  const queueLatency = maxQueueLatency(metrics);
+  const jobsPerDyno = Math.max(1, config.JOBS_PER_DYNO);
+  const unboundedTarget = Math.ceil(queueSize / jobsPerDyno);
+  const targetDynos = Math.min(
+    config.MAX_DYNOS,
+    Math.max(config.MIN_DYNOS, unboundedTarget)
+  );
 
-  const queueHigh = queueSize > config.QUEUE_SIZE_THRESHOLD;
-  const latencyHigh = queueLatency > config.QUEUE_LATENCY_THRESHOLD_MS;
-  const memoryHigh = metrics.memoryPercent > config.MEMORY_THRESHOLD_PERCENT;
-  const queueLow = queueSize < config.scaleDownQueueSizeThreshold;
-  const latencyLow = queueLatency < config.scaleDownQueueLatencyThresholdMs;
-  const memoryLow = metrics.memoryPercent < config.scaleDownMemoryThresholdPercent;
+  if (targetDynos === currentDynos) {
+    if (unboundedTarget > config.MAX_DYNOS) {
+      return noScale(currentDynos, "Queue requires more workers but already at max worker dynos");
+    }
+    if (unboundedTarget < config.MIN_DYNOS) {
+      return noScale(currentDynos, "Queue is small but already at min worker dynos");
+    }
+    return noScale(
+      currentDynos,
+      `Worker queue matches ${jobsPerDyno} jobs/dyno ratio (queue: ${queueSize})`
+    );
+  }
 
-  if (
-    (queueHigh || latencyHigh || memoryHigh) &&
-    currentDynos < config.MAX_DYNOS &&
-    secondsSinceLastScale >= config.SCALE_UP_COOLDOWN_SECONDS
-  ) {
+  if (targetDynos > currentDynos) {
+    if (secondsSinceLastScale < config.SCALE_UP_COOLDOWN_SECONDS) {
+      return noScale(currentDynos, "Worker scale-up cooldown active");
+    }
     return {
       shouldScale: true,
       action: "scale_up",
       currentDynos,
-      targetDynos: currentDynos + 1,
-      reason: `Worker metrics exceed thresholds (queue: ${queueSize}, latency: ${queueLatency}ms, memory: ${metrics.memoryPercent}%)`,
+      targetDynos,
+      reason: `Worker queue ${queueSize} exceeds ${jobsPerDyno} jobs/dyno (target ${targetDynos})`,
     };
   }
 
-  if (
-    queueLow &&
-    latencyLow &&
-    memoryLow &&
-    currentDynos > config.MIN_DYNOS &&
-    secondsSinceLastScale >= config.SCALE_DOWN_COOLDOWN_SECONDS
-  ) {
-    return {
-      shouldScale: true,
-      action: "scale_down",
-      currentDynos,
-      targetDynos: currentDynos - 1,
-      reason: `Worker metrics below scale-down thresholds (queue: ${queueSize}, latency: ${queueLatency}ms, memory: ${metrics.memoryPercent}%)`,
-    };
+  if (secondsSinceLastScale < config.SCALE_DOWN_COOLDOWN_SECONDS) {
+    return noScale(currentDynos, "Worker scale-down cooldown active");
   }
 
-  if (queueHigh || latencyHigh || memoryHigh) {
-    if (currentDynos >= config.MAX_DYNOS) {
-      return noScale(currentDynos, "Metrics high but already at max worker dynos");
-    }
-    if (secondsSinceLastScale < config.SCALE_UP_COOLDOWN_SECONDS) {
-      return noScale(currentDynos, "Worker scale-up cooldown active");
-    }
-  }
-
-  if (queueLow && latencyLow && memoryLow) {
-    if (currentDynos <= config.MIN_DYNOS) {
-      return noScale(currentDynos, "Metrics low but already at min worker dynos");
-    }
-    if (secondsSinceLastScale < config.SCALE_DOWN_COOLDOWN_SECONDS) {
-      return noScale(currentDynos, "Worker scale-down cooldown active");
-    }
-  }
-
-  return noScale(currentDynos, "Worker metrics are healthy");
+  return {
+    shouldScale: true,
+    action: "scale_down",
+    currentDynos,
+    targetDynos,
+    reason: `Worker queue ${queueSize} is below ${jobsPerDyno} jobs/dyno (target ${targetDynos})`,
+  };
 }
 
 function noScale(currentDynos: number, reason: string): ScalingDecision {
