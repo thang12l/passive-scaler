@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicAppConfig, isLiveScaling } from "@/lib/app-config";
 import { findAppByNameForWebhook } from "@/lib/apps-service";
-import { logger } from "@/lib/logger";
+import { isWebhookDebugEnabled, logger } from "@/lib/logger";
 import { getOrCreateFormationStates, processMetrics } from "@/lib/scaling-service";
 import {
   normalizeMetricsForScaling,
@@ -9,12 +9,31 @@ import {
   validateAppWebhookSecret,
 } from "@/lib/validator";
 
+function logUnsuccessfulWebhook(
+  request: NextRequest,
+  status: number,
+  error: string,
+  extra?: Record<string, unknown>
+) {
+  if (!isWebhookDebugEnabled()) return;
+  logger.warn("Webhook request unsuccessful", {
+    status,
+    error,
+    method: request.method,
+    path: request.nextUrl.pathname,
+    ...extra,
+  });
+}
+
 export async function handleMetricsWebhook(request: NextRequest) {
   try {
     let body: unknown;
     try {
       body = await request.json();
     } catch {
+      logUnsuccessfulWebhook(request, 400, "Request body must be valid JSON", {
+        contentType: request.headers.get("content-type"),
+      });
       return NextResponse.json(
         { success: false, error: "Request body must be valid JSON" },
         { status: 400 }
@@ -23,6 +42,13 @@ export async function handleMetricsWebhook(request: NextRequest) {
 
     const parsed = parseMetricsPayload(body);
     if (!parsed.success) {
+      logUnsuccessfulWebhook(request, 400, parsed.error, {
+        details: parsed.details,
+        appName:
+          body !== null && typeof body === "object" && "app_name" in body
+            ? (body as { app_name?: unknown }).app_name
+            : undefined,
+      });
       return NextResponse.json(
         { success: false, error: parsed.error, details: parsed.details },
         { status: 400 }
@@ -32,6 +58,10 @@ export async function handleMetricsWebhook(request: NextRequest) {
     const payload = parsed.data;
     const app = await findAppByNameForWebhook(payload.app_name);
     if (!app) {
+      logUnsuccessfulWebhook(request, 404, "Unknown app", {
+        appName: payload.app_name,
+        processType: payload.process_type,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -50,6 +80,12 @@ export async function handleMetricsWebhook(request: NextRequest) {
         : undefined;
 
     if (!validateAppWebhookSecret(app, authHeader, bodySecret)) {
+      logUnsuccessfulWebhook(request, 401, "Unauthorized", {
+        appName: payload.app_name,
+        appSlug: app.slug,
+        authViaHeader: Boolean(authHeader?.startsWith("Bearer ")),
+        authViaBody: Boolean(bodySecret),
+      });
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 

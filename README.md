@@ -93,6 +93,8 @@ All routes require `Authorization: Bearer <ADMIN_SECRET>`.
 | `DATABASE_URL` | Yes | Postgres connection string |
 | `HEROKU_API_KEY` | No | Platform-wide Heroku key (apps can override) |
 | `APP_BASE_URL` | No | Public URL for webhook links in dashboard |
+| `LOG_LEVEL` | No | `debug` \| `info` \| `warn` \| `error` (default `info`) |
+| `WEBHOOK_DEBUG` | No | `true` to log unsuccessful webhook requests (also on when `LOG_LEVEL=debug`) |
 
 ### Per-app settings (in database)
 

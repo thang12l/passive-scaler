@@ -15,6 +15,16 @@ function currentLevel(): LogLevel {
   return "info";
 }
 
+function truthyFlag(value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
+}
+
+/** WEBHOOK_DEBUG=true or LOG_LEVEL=debug */
+export function isWebhookDebugEnabled(): boolean {
+  return truthyFlag(process.env.WEBHOOK_DEBUG) || currentLevel() === "debug";
+}
+
 function shouldLog(level: LogLevel): boolean {
   return LEVELS[level] >= LEVELS[currentLevel()];
 }
