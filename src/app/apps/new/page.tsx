@@ -16,6 +16,14 @@ const defaultValues: AppFormValues = {
   memory_threshold_percent: 85,
   scale_up_cooldown_seconds: 300,
   scale_down_cooldown_seconds: 600,
+  worker_scaling_enabled: false,
+  worker_min_dynos: 1,
+  worker_max_dynos: 5,
+  worker_queue_size_threshold: 10,
+  worker_queue_latency_threshold_ms: 5000,
+  worker_memory_threshold_percent: 85,
+  worker_scale_up_cooldown_seconds: 300,
+  worker_scale_down_cooldown_seconds: 600,
   heroku_api_key: "",
 };
 
@@ -43,6 +51,14 @@ export default function NewAppPage() {
       memory_threshold_percent: values.memory_threshold_percent,
       scale_up_cooldown_seconds: values.scale_up_cooldown_seconds,
       scale_down_cooldown_seconds: values.scale_down_cooldown_seconds,
+      worker_scaling_enabled: values.worker_scaling_enabled,
+      worker_min_dynos: values.worker_min_dynos,
+      worker_max_dynos: values.worker_max_dynos,
+      worker_queue_size_threshold: values.worker_queue_size_threshold,
+      worker_queue_latency_threshold_ms: values.worker_queue_latency_threshold_ms,
+      worker_memory_threshold_percent: values.worker_memory_threshold_percent,
+      worker_scale_up_cooldown_seconds: values.worker_scale_up_cooldown_seconds,
+      worker_scale_down_cooldown_seconds: values.worker_scale_down_cooldown_seconds,
       heroku_api_key: values.heroku_api_key || undefined,
     };
 

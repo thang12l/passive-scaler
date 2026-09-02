@@ -1,9 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminAuth } from "@/lib/admin-auth";
-import { serializeApp } from "@/lib/app-config";
+import { serializeApp, serializeFormationState } from "@/lib/app-config";
 import { resolveAppBaseUrl } from "@/lib/platform-config";
 import { createApp, createAppSchema, listApps } from "@/lib/apps-service";
+import { prisma } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   const auth = requireAdminAuth(request);
@@ -12,13 +13,26 @@ export async function GET(request: NextRequest) {
   }
 
   const apps = await listApps();
+  const formations = await prisma.formationState.findMany({
+    where: { appSlug: { in: apps.map((app) => app.slug) } },
+  });
   const baseUrl = resolveAppBaseUrl(request.nextUrl.origin);
 
   return NextResponse.json({
-    apps: apps.map((app) => ({
-      ...serializeApp(app),
-      webhook_url: `${baseUrl}/api/webhooks/metrics`,
-    })),
+    apps: apps.map((app) => {
+      const appFormations = formations.filter((f) => f.appSlug === app.slug);
+      const lastReportedAt = appFormations.reduce<Date | null>((latest, formation) => {
+        if (!latest || formation.updatedAt > latest) return formation.updatedAt;
+        return latest;
+      }, null);
+
+      return {
+        ...serializeApp(app),
+        webhook_url: `${baseUrl}/api/webhooks/metrics`,
+        last_reported_at: lastReportedAt?.toISOString() ?? null,
+        formations: appFormations.map(serializeFormationState),
+      };
+    }),
   });
 }
 

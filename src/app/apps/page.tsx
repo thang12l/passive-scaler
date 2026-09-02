@@ -11,8 +11,27 @@ interface AppListItem {
   app_name: string;
   display_name: string;
   scaling_enabled: boolean;
+  worker_scaling_enabled: boolean;
   live_scaling: boolean;
-  webhook_url: string;
+  last_reported_at: string | null;
+  formations: Array<{
+    process_type: string;
+    current_dynos: number | null;
+    last_metrics: {
+      response_time: number | null;
+      memory_percent: number | null;
+      queue_size: number | null;
+    };
+  }>;
+}
+
+function formatFormationSummary(formations: AppListItem["formations"]): string {
+  const web = formations.find((f) => f.process_type === "web");
+  const worker = formations.find((f) => f.process_type === "worker");
+  const parts: string[] = [];
+  if (web) parts.push(`web ${web.current_dynos ?? "—"}`);
+  if (worker) parts.push(`worker ${worker.current_dynos ?? "—"}`);
+  return parts.join(" · ") || "—";
 }
 
 export default function AppsPage() {
@@ -51,14 +70,12 @@ export default function AppsPage() {
 
   if (!authenticated) {
     return (
-      <>
-        <AdminLogin
-          onAuthenticated={() => {
-            setAuthenticated(true);
-            loadApps();
-          }}
-        />
-      </>
+      <AdminLogin
+        onAuthenticated={() => {
+          setAuthenticated(true);
+          loadApps();
+        }}
+      />
     );
   }
 
@@ -88,6 +105,8 @@ export default function AppsPage() {
             <thead>
               <tr>
                 <th>App</th>
+                <th>Dynos</th>
+                <th>Last report</th>
                 <th>Mode</th>
                 <th></th>
               </tr>
@@ -99,9 +118,16 @@ export default function AppsPage() {
                     <strong>{app.display_name}</strong>
                     <div className="muted">{app.app_name}</div>
                   </td>
+                  <td>{formatFormationSummary(app.formations)}</td>
+                  <td>
+                    {app.last_reported_at
+                      ? new Date(app.last_reported_at).toLocaleString()
+                      : "—"}
+                  </td>
                   <td>
                     <StatusBadge
                       scalingEnabled={app.scaling_enabled}
+                      workerScalingEnabled={app.worker_scaling_enabled}
                       liveScaling={app.live_scaling}
                     />
                   </td>

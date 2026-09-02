@@ -39,10 +39,11 @@ async function seedLegacyAppFromEnv() {
       scaleUpCooldownSeconds: Number(process.env.SCALE_UP_COOLDOWN_SECONDS ?? 300),
       scaleDownCooldownSeconds: Number(process.env.SCALE_DOWN_COOLDOWN_SECONDS ?? 600),
       herokuApiKey: process.env.HEROKU_API_KEY?.trim() || null,
-      scalingState: {
-        create: {
-          currentDynos: Number(process.env.MIN_DYNOS ?? 1),
-        },
+      formations: {
+        create: [
+          { processType: "web", currentDynos: Number(process.env.MIN_DYNOS ?? 1) },
+          { processType: "worker", currentDynos: 1 },
+        ],
       },
     },
   });
@@ -64,8 +65,11 @@ async function seedDefaultAppIfEmpty() {
       displayName: "Example App",
       webhookSecretHash: hashSecret(webhookSecret),
       scalingEnabled: false,
-      scalingState: {
-        create: { currentDynos: 1 },
+      formations: {
+        create: [
+          { processType: "web", currentDynos: 1 },
+          { processType: "worker", currentDynos: 1 },
+        ],
       },
     },
   });

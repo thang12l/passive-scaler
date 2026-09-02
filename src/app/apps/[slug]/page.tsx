@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AppForm, type AppFormValues } from "@/components/app-form";
 import { AdminLogin } from "@/components/admin-login";
+import { EventsTable } from "@/components/events-table";
+import { FormationPanel } from "@/components/formation-panel";
 import { StatusBadge } from "@/components/status-badge";
 import { adminFetch, getAdminToken } from "@/lib/admin-client";
 
@@ -13,6 +15,7 @@ interface AppDetail {
   app_name: string;
   display_name: string;
   scaling_enabled: boolean;
+  worker_scaling_enabled: boolean;
   live_scaling: boolean;
   min_dynos: number;
   max_dynos: number;
@@ -20,18 +23,28 @@ interface AppDetail {
   memory_threshold_percent: number;
   scale_up_cooldown_seconds: number;
   scale_down_cooldown_seconds: number;
+  worker_min_dynos: number;
+  worker_max_dynos: number;
+  worker_queue_size_threshold: number;
+  worker_queue_latency_threshold_ms: number;
+  worker_memory_threshold_percent: number;
+  worker_scale_up_cooldown_seconds: number;
+  worker_scale_down_cooldown_seconds: number;
   has_heroku_api_key: boolean;
 }
 
-interface AppState {
+interface FormationState {
+  process_type: string;
   current_dynos: number | null;
   last_scale_time: string | null;
   last_action: string | null;
   last_metrics: {
     response_time: number | null;
     memory_percent: number | null;
+    queue_size: number | null;
+    queue_latency: number | null;
   };
-  recent_events: Array<{ action: string; reason: string; created_at: string }>;
+  last_reported_at: string;
 }
 
 export default function EditAppPage() {
@@ -41,7 +54,8 @@ export default function EditAppPage() {
 
   const [authenticated, setAuthenticated] = useState(Boolean(getAdminToken()));
   const [app, setApp] = useState<AppDetail | null>(null);
-  const [state, setState] = useState<AppState | null>(null);
+  const [formations, setFormations] = useState<FormationState[]>([]);
+  const [lastReportedAt, setLastReportedAt] = useState<string | null>(null);
   const [webhookUrl, setWebhookUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [newSecret, setNewSecret] = useState<string | null>(null);
@@ -61,7 +75,8 @@ export default function EditAppPage() {
     }
     const data = await response.json();
     setApp(data.app);
-    setState(data.state);
+    setFormations(data.formations ?? []);
+    setLastReportedAt(data.last_reported_at ?? null);
     setWebhookUrl(data.webhook_url);
     setAuthenticated(true);
     setLoading(false);
@@ -84,6 +99,14 @@ export default function EditAppPage() {
         memory_threshold_percent: values.memory_threshold_percent,
         scale_up_cooldown_seconds: values.scale_up_cooldown_seconds,
         scale_down_cooldown_seconds: values.scale_down_cooldown_seconds,
+        worker_scaling_enabled: values.worker_scaling_enabled,
+        worker_min_dynos: values.worker_min_dynos,
+        worker_max_dynos: values.worker_max_dynos,
+        worker_queue_size_threshold: values.worker_queue_size_threshold,
+        worker_queue_latency_threshold_ms: values.worker_queue_latency_threshold_ms,
+        worker_memory_threshold_percent: values.worker_memory_threshold_percent,
+        worker_scale_up_cooldown_seconds: values.worker_scale_up_cooldown_seconds,
+        worker_scale_down_cooldown_seconds: values.worker_scale_down_cooldown_seconds,
         heroku_api_key: values.heroku_api_key || "",
       }),
     });
@@ -140,8 +163,19 @@ export default function EditAppPage() {
     memory_threshold_percent: app.memory_threshold_percent,
     scale_up_cooldown_seconds: app.scale_up_cooldown_seconds,
     scale_down_cooldown_seconds: app.scale_down_cooldown_seconds,
+    worker_scaling_enabled: app.worker_scaling_enabled,
+    worker_min_dynos: app.worker_min_dynos,
+    worker_max_dynos: app.worker_max_dynos,
+    worker_queue_size_threshold: app.worker_queue_size_threshold,
+    worker_queue_latency_threshold_ms: app.worker_queue_latency_threshold_ms,
+    worker_memory_threshold_percent: app.worker_memory_threshold_percent,
+    worker_scale_up_cooldown_seconds: app.worker_scale_up_cooldown_seconds,
+    worker_scale_down_cooldown_seconds: app.worker_scale_down_cooldown_seconds,
     heroku_api_key: "",
   };
+
+  const webFormation = formations.find((f) => f.process_type === "web");
+  const workerFormation = formations.find((f) => f.process_type === "worker");
 
   return (
     <>
@@ -149,12 +183,16 @@ export default function EditAppPage() {
         <h1 style={{ margin: 0 }}>{app.display_name}</h1>
         <StatusBadge
           scalingEnabled={app.scaling_enabled}
+          workerScalingEnabled={app.worker_scaling_enabled}
           liveScaling={app.live_scaling}
         />
       </div>
 
       <p className="muted">
         <Link href="/apps">← Back to apps</Link>
+        {lastReportedAt && (
+          <> · Last metric report: {new Date(lastReportedAt).toLocaleString()}</>
+        )}
       </p>
 
       {message && <div className="alert success">{message}</div>}
@@ -178,29 +216,10 @@ export default function EditAppPage() {
         )}
       </div>
 
-      {state && (
-        <div className="card">
-          <h3>Current state</h3>
-          <div className="grid-2">
-            <div>
-              <span className="muted">Dynos</span>
-              <div>{state.current_dynos ?? "—"}</div>
-            </div>
-            <div>
-              <span className="muted">Last action</span>
-              <div>{state.last_action ?? "—"}</div>
-            </div>
-            <div>
-              <span className="muted">Last response time</span>
-              <div>{state.last_metrics.response_time ?? "—"} ms</div>
-            </div>
-            <div>
-              <span className="muted">Last memory</span>
-              <div>{state.last_metrics.memory_percent ?? "—"}%</div>
-            </div>
-          </div>
-        </div>
-      )}
+      {webFormation && <FormationPanel formation={webFormation} />}
+      {workerFormation && <FormationPanel formation={workerFormation} />}
+
+      <EventsTable slug={slug} />
 
       <AppForm
         mode="edit"

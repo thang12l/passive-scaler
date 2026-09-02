@@ -1,4 +1,5 @@
 import { logger } from "./logger";
+import type { ProcessType } from "./process-type";
 
 const HEROKU_API_BASE = "https://api.heroku.com";
 
@@ -31,10 +32,37 @@ async function herokuFetch(apiKey: string, path: string, init?: RequestInit): Pr
   return response;
 }
 
-export async function getWebDynoCount(appName: string, apiKey: string): Promise<number> {
-  const response = await herokuFetch(apiKey, `/apps/${appName}/formation/web`);
+export async function getFormationCount(
+  appName: string,
+  apiKey: string,
+  processType: ProcessType
+): Promise<number> {
+  const response = await herokuFetch(apiKey, `/apps/${appName}/formation/${processType}`);
   const formation = (await response.json()) as HerokuFormation;
   return formation.quantity;
+}
+
+export async function scaleFormation(
+  appName: string,
+  apiKey: string,
+  processType: ProcessType,
+  quantity: number
+): Promise<number> {
+  const response = await herokuFetch(apiKey, `/apps/${appName}/formation/${processType}`, {
+    method: "PATCH",
+    body: JSON.stringify({ quantity }),
+  });
+  const formation = (await response.json()) as HerokuFormation;
+  logger.info("Scaled Heroku formation", {
+    app: appName,
+    processType,
+    quantity: formation.quantity,
+  });
+  return formation.quantity;
+}
+
+export async function getWebDynoCount(appName: string, apiKey: string): Promise<number> {
+  return getFormationCount(appName, apiKey, "web");
 }
 
 export async function scaleWebDynos(
@@ -42,11 +70,5 @@ export async function scaleWebDynos(
   apiKey: string,
   quantity: number
 ): Promise<number> {
-  const response = await herokuFetch(apiKey, `/apps/${appName}/formation/web`, {
-    method: "PATCH",
-    body: JSON.stringify({ quantity }),
-  });
-  const formation = (await response.json()) as HerokuFormation;
-  logger.info("Scaled Heroku formation", { app: appName, quantity: formation.quantity });
-  return formation.quantity;
+  return scaleFormation(appName, apiKey, "web", quantity);
 }

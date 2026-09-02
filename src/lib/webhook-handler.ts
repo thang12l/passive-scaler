@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPublicAppConfig, isLiveScaling } from "@/lib/app-config";
 import { findAppByNameForWebhook } from "@/lib/apps-service";
 import { logger } from "@/lib/logger";
-import { getOrCreateState, processMetrics } from "@/lib/scaling-service";
+import { getOrCreateFormationStates, processMetrics } from "@/lib/scaling-service";
 import {
   normalizeMetricsForScaling,
   parseMetricsPayload,
@@ -54,12 +54,12 @@ export async function handleMetricsWebhook(request: NextRequest) {
     }
 
     const metrics = normalizeMetricsForScaling(payload);
-    await getOrCreateState(app);
+    await getOrCreateFormationStates(app);
     const decision = await processMetrics(app, metrics);
 
     logger.info("Scaling decision", {
       appSlug: app.slug,
-      processType: metrics.processType,
+      processType: decision.processType,
       dyno: metrics.dyno,
       shouldScale: decision.shouldScale,
       action: decision.action,
@@ -74,12 +74,13 @@ export async function handleMetricsWebhook(request: NextRequest) {
       live_scaling: isLiveScaling(app),
       received: {
         app_name: app.appName,
-        process_type: metrics.processType ?? null,
+        process_type: decision.processType,
         dyno: metrics.dyno ?? null,
         timestamp: metrics.reportedAt ?? null,
       },
       config: getPublicAppConfig(app),
       decision: {
+        process_type: decision.processType,
         should_scale: decision.shouldScale,
         action: decision.action,
         current_dynos: decision.currentDynos,

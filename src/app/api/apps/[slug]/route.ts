@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminAuth } from "@/lib/admin-auth";
-import { serializeApp } from "@/lib/app-config";
+import {
+  serializeApp,
+  serializeFormationState,
+  serializeScalingEvent,
+} from "@/lib/app-config";
 import { resolveAppBaseUrl } from "@/lib/platform-config";
 import { deleteApp, getAppBySlug, updateApp, updateAppSchema } from "@/lib/apps-service";
-import { getAppStatus } from "@/lib/scaling-service";
+import { getAppFormations, listAppEvents } from "@/lib/scaling-service";
 
 type RouteContext = { params: Promise<{ slug: string }> };
 
@@ -19,28 +23,21 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ success: false, error: "App not found" }, { status: 404 });
   }
 
-  const status = await getAppStatus(slug);
+  const formations = await getAppFormations(slug);
+  const { events } = await listAppEvents(slug, { limit: 10 });
   const baseUrl = resolveAppBaseUrl(request.nextUrl.origin);
+
+  const lastReportedAt = formations.reduce<Date | null>((latest, formation) => {
+    if (!latest || formation.updatedAt > latest) return formation.updatedAt;
+    return latest;
+  }, null);
 
   return NextResponse.json({
     app: serializeApp(app),
     webhook_url: `${baseUrl}/api/webhooks/metrics`,
-    state: status
-      ? {
-          current_dynos: status.currentDynos,
-          last_scale_time: status.lastScaleTime?.toISOString() ?? null,
-          last_action: status.lastAction,
-          last_metrics: {
-            response_time: status.lastResponseTime ? Number(status.lastResponseTime) : null,
-            memory_percent: status.lastMemoryPercent ? Number(status.lastMemoryPercent) : null,
-          },
-          recent_events: status.app.events.map((event) => ({
-            action: event.action,
-            reason: event.reason,
-            created_at: event.createdAt.toISOString(),
-          })),
-        }
-      : null,
+    last_reported_at: lastReportedAt?.toISOString() ?? null,
+    formations: formations.map(serializeFormationState),
+    recent_events: events.map(serializeScalingEvent),
   });
 }
 

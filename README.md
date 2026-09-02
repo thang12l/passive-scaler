@@ -82,6 +82,7 @@ All routes require `Authorization: Bearer <ADMIN_SECRET>`.
 | GET | `/api/apps/:slug` | Get app + state |
 | PATCH | `/api/apps/:slug` | Update app settings |
 | DELETE | `/api/apps/:slug` | Delete app |
+| GET | `/api/apps/:slug/events` | Paginated scaling history |
 | POST | `/api/apps/:slug/regenerate-secret` | Rotate webhook secret |
 
 ## Environment Variables
@@ -95,8 +96,13 @@ All routes require `Authorization: Bearer <ADMIN_SECRET>`.
 
 ### Per-app settings (in database)
 
-- `scaling_enabled` — `false` records metrics only; `true` runs scaling decisions and calls Heroku when configured
-- Thresholds, cooldowns, min/max dynos
+**Web formation** (`process_type: "web"`)
+- `scaling_enabled`, min/max dynos, response time & memory thresholds, cooldowns
+
+**Worker formation** (`process_type: "worker"`)
+- `worker_scaling_enabled`, min/max worker dynos
+- Queue size & latency thresholds, memory threshold, cooldowns
+
 - Optional per-app Heroku API key (falls back to platform `HEROKU_API_KEY`)
 - `app_name` — used in webhook payloads and as the Heroku app identifier
 
@@ -110,7 +116,8 @@ npm run db:seed
 
 ## Architecture
 
-- **Apps table** — per-app config, webhook secret hash, dry-run flag
-- **Webhook** — lookup app by slug, verify per-app secret, scale if live
+- **Apps table** — per-app web & worker config, webhook secret hash
+- **Formation state** — independent dyno count, cooldowns, and last metrics per web/worker
+- **Webhook** — routes by `process_type`, scales matching Heroku formation
 - **Scaling engine** — pure decision logic with cooldowns and thresholds
 - **Postgres** — tracks dyno count, last scale time, and event history
