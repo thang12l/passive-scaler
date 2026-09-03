@@ -9,6 +9,9 @@ import { EventsTable } from "@/components/events-table";
 import { FormationPanel } from "@/components/formation-panel";
 import { StatusBadge } from "@/components/status-badge";
 import { adminFetch, getAdminToken, watchAppLive } from "@/lib/admin-client";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface AppDetail {
   slug: string;
@@ -207,7 +210,7 @@ export default function EditAppPage() {
   }
 
   if (loading || !app) {
-    return <p className="muted">Loading…</p>;
+    return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
   const formValues: AppFormValues = {
@@ -235,9 +238,9 @@ export default function EditAppPage() {
   const workerFormation = formations.find((f) => f.process_type === "worker");
 
   return (
-    <>
-      <div className="actions" style={{ marginBottom: "1rem" }}>
-        <h1 style={{ margin: 0 }}>{app.display_name}</h1>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight">{app.display_name}</h1>
         <StatusBadge
           scalingEnabled={app.scaling_enabled}
           workerScalingEnabled={app.worker_scaling_enabled}
@@ -246,33 +249,53 @@ export default function EditAppPage() {
         />
       </div>
 
-      <p className="muted">
-        <Link href="/apps">← Back to apps</Link>
+      <p className="text-sm text-muted-foreground">
+        <Link href="/apps" className="underline-offset-4 hover:underline">
+          ← Back to dashboard
+        </Link>
         {lastReportedAt && (
           <> · Last metric report: {new Date(lastReportedAt).toLocaleString()}</>
         )}
       </p>
 
-      {message && <div className="alert success">{message}</div>}
+      {message && (
+        <Alert>
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
+      )}
 
-      <div className="card">
-        <h3>Webhook integration</h3>
-        <p className="muted">Use this URL and the app&apos;s webhook secret in your reporter.</p>
-        <p className="muted">URL</p>
-        <div className="secret-box">{webhookUrl}</div>
-        <p className="muted">Payload field: <code>app_name: &quot;{app.app_name}&quot;</code></p>
-        <div className="actions">
-          <button type="button" onClick={regenerateSecret}>
-            Regenerate secret
-          </button>
-        </div>
-        {newSecret && (
-          <div className="alert info" style={{ marginTop: "1rem" }}>
-            <p>New webhook secret (copy now):</p>
-            <div className="secret-box">{newSecret}</div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Webhook integration</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Use this URL and the app&apos;s webhook secret in your reporter.
+          </p>
+          <div>
+            <p className="mb-1 text-sm text-muted-foreground">URL</p>
+            <pre className="overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs break-all">
+              {webhookUrl}
+            </pre>
           </div>
-        )}
-      </div>
+          <p className="text-sm text-muted-foreground">
+            Payload field: <code className="font-mono text-xs">app_name: &quot;{app.app_name}&quot;</code>
+          </p>
+          <Button type="button" variant="outline" onClick={regenerateSecret}>
+            Regenerate secret
+          </Button>
+          {newSecret && (
+            <Alert>
+              <AlertDescription>
+                <p className="mb-2">New webhook secret (copy now):</p>
+                <pre className="overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs break-all">
+                  {newSecret}
+                </pre>
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
 
       {webFormation && <FormationPanel formation={webFormation} />}
       {workerFormation && <FormationPanel formation={workerFormation} />}
@@ -289,12 +312,16 @@ export default function EditAppPage() {
         hasPlatformHerokuApiKey={app.has_platform_heroku_api_key}
       />
 
-      <div className="card">
-        <h3>Danger zone</h3>
-        <button type="button" className="danger" onClick={deleteApp}>
-          Delete app
-        </button>
-      </div>
-    </>
+      <Card>
+        <CardHeader>
+          <CardTitle>Danger zone</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Button type="button" variant="destructive" onClick={deleteApp}>
+            Delete app
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

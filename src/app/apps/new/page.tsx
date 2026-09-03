@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 import { AppForm, type AppFormValues } from "@/components/app-form";
 import { AdminLogin } from "@/components/admin-login";
 import { adminFetch, getAdminToken } from "@/lib/admin-client";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const defaultValues: AppFormValues = {
   app_name: "",
@@ -95,31 +98,39 @@ export default function NewAppPage() {
 
   if (createdSecret) {
     return (
-      <div className="card">
-        <h2>App created</h2>
-        <div className="alert info">
-          Copy the webhook secret now — it will not be shown again.
-        </div>
-        <p className="muted">Webhook URL</p>
-        <div className="secret-box">{webhookUrl}</div>
-        <p className="muted">Webhook secret</p>
-        <div className="secret-box">{createdSecret}</div>
-        <div className="actions" style={{ marginTop: "1rem" }}>
-          <button
-            type="button"
-            className="primary"
-            onClick={() => router.push("/apps")}
-          >
+      <Card>
+        <CardHeader>
+          <CardTitle>App created</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <AlertDescription>
+              Copy the webhook secret now — it will not be shown again.
+            </AlertDescription>
+          </Alert>
+          <div>
+            <p className="mb-1 text-sm text-muted-foreground">Webhook URL</p>
+            <pre className="overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs break-all">
+              {webhookUrl}
+            </pre>
+          </div>
+          <div>
+            <p className="mb-1 text-sm text-muted-foreground">Webhook secret</p>
+            <pre className="overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs break-all">
+              {createdSecret}
+            </pre>
+          </div>
+          <Button type="button" onClick={() => router.push("/apps")}>
             Back to apps
-          </button>
-        </div>
-      </div>
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <>
-      <h1>Add app</h1>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Add app</h1>
       <AppForm
         mode="create"
         initial={defaultValues}
@@ -127,6 +138,6 @@ export default function NewAppPage() {
         submitLabel="Create app"
         hasPlatformHerokuApiKey={hasPlatformHerokuApiKey}
       />
-    </>
+    </div>
   );
 }

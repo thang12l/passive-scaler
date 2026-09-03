@@ -1,3 +1,10 @@
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
 export function FormationPanel({
   formation,
 }: {
@@ -19,52 +26,56 @@ export function FormationPanel({
   const label = isWorker ? "Worker" : "Web";
 
   return (
-    <div className="card">
-      <h3>{label} formation</h3>
-      <div className="grid-2">
-        <div>
-          <span className="muted">Current dynos</span>
-          <div>{formation.current_dynos ?? "—"}</div>
-        </div>
-        <div>
-          <span className="muted">Last action</span>
-          <div>{formation.last_action ?? "—"}</div>
-        </div>
-        <div>
-          <span className="muted">Last reported</span>
-          <div>{new Date(formation.last_reported_at).toLocaleString()}</div>
-        </div>
-        <div>
-          <span className="muted">Last scale</span>
+    <Card>
+      <CardHeader>
+        <CardTitle>{label} formation</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            {formation.last_scale_time
-              ? new Date(formation.last_scale_time).toLocaleString()
-              : "—"}
+            <div className="text-sm text-muted-foreground">Current dynos</div>
+            <div>{formation.current_dynos ?? "—"}</div>
+          </div>
+          <div>
+            <div className="text-sm text-muted-foreground">Last action</div>
+            <div>{formation.last_action ?? "—"}</div>
+          </div>
+          <div>
+            <div className="text-sm text-muted-foreground">Last reported</div>
+            <div>{new Date(formation.last_reported_at).toLocaleString()}</div>
+          </div>
+          <div>
+            <div className="text-sm text-muted-foreground">Last scale</div>
+            <div>
+              {formation.last_scale_time
+                ? new Date(formation.last_scale_time).toLocaleString()
+                : "—"}
+            </div>
+          </div>
+          {!isWorker && (
+            <div>
+              <div className="text-sm text-muted-foreground">Response time</div>
+              <div>{formation.last_metrics.response_time ?? "—"} ms</div>
+            </div>
+          )}
+          {isWorker && (
+            <>
+              <div>
+                <div className="text-sm text-muted-foreground">Queue size</div>
+                <div>{formation.last_metrics.queue_size ?? "—"}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Queue latency</div>
+                <div>{formation.last_metrics.queue_latency ?? "—"} ms</div>
+              </div>
+            </>
+          )}
+          <div>
+            <div className="text-sm text-muted-foreground">Memory</div>
+            <div>{formation.last_metrics.memory_percent ?? "—"}%</div>
           </div>
         </div>
-        {!isWorker && (
-          <div>
-            <span className="muted">Response time</span>
-            <div>{formation.last_metrics.response_time ?? "—"} ms</div>
-          </div>
-        )}
-        {isWorker && (
-          <>
-            <div>
-              <span className="muted">Queue size</span>
-              <div>{formation.last_metrics.queue_size ?? "—"}</div>
-            </div>
-            <div>
-              <span className="muted">Queue latency</span>
-              <div>{formation.last_metrics.queue_latency ?? "—"} ms</div>
-            </div>
-          </>
-        )}
-        <div>
-          <span className="muted">Memory</span>
-          <div>{formation.last_metrics.memory_percent ?? "—"}%</div>
-        </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -5,6 +5,17 @@ import { useCallback, useEffect, useState } from "react";
 import { AdminLogin } from "@/components/admin-login";
 import { StatusBadge } from "@/components/status-badge";
 import { adminFetch, getAdminToken } from "@/lib/admin-client";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface AppListItem {
   slug: string;
@@ -80,66 +91,76 @@ export default function AppsPage() {
   }
 
   return (
-    <>
-      <div className="actions" style={{ marginBottom: "1.5rem" }}>
-        <h1 style={{ margin: 0, flex: 1 }}>Apps</h1>
-        <Link href="/apps/new" className="btn primary">
-          Add app
-        </Link>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="flex-1 text-2xl font-semibold tracking-tight">Apps</h1>
+        <Button asChild>
+          <Link href="/apps/new">Add app</Link>
+        </Button>
       </div>
 
-      {error && <div className="alert error">{error}</div>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {loading ? (
-        <p className="muted">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : apps.length === 0 ? (
-        <div className="card">
-          <p>No apps yet.</p>
-          <Link href="/apps/new" className="btn primary">
-            Add your first app
-          </Link>
-        </div>
+        <Card>
+          <CardContent className="space-y-4">
+            <p>No apps yet.</p>
+            <Button asChild>
+              <Link href="/apps/new">Add your first app</Link>
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="card">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>App</th>
-                <th>Dynos</th>
-                <th>Last report</th>
-                <th>Mode</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {apps.map((app) => (
-                <tr key={app.slug}>
-                  <td>
-                    <strong>{app.display_name}</strong>
-                    <div className="muted">{app.app_name}</div>
-                  </td>
-                  <td>{formatFormationSummary(app.formations)}</td>
-                  <td>
-                    {app.last_reported_at
-                      ? new Date(app.last_reported_at).toLocaleString()
-                      : "—"}
-                  </td>
-                  <td>
-                    <StatusBadge
-                      scalingEnabled={app.scaling_enabled}
-                      workerScalingEnabled={app.worker_scaling_enabled}
-                      liveScaling={app.live_scaling}
-                    />
-                  </td>
-                  <td>
-                    <Link href={`/apps/${app.slug}`}>Manage</Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Card>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>App</TableHead>
+                  <TableHead>Dynos</TableHead>
+                  <TableHead>Last report</TableHead>
+                  <TableHead>Mode</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {apps.map((app) => (
+                  <TableRow key={app.slug}>
+                    <TableCell>
+                      <strong>{app.display_name}</strong>
+                      <div className="text-sm text-muted-foreground">{app.app_name}</div>
+                    </TableCell>
+                    <TableCell>{formatFormationSummary(app.formations)}</TableCell>
+                    <TableCell>
+                      {app.last_reported_at
+                        ? new Date(app.last_reported_at).toLocaleString()
+                        : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        scalingEnabled={app.scaling_enabled}
+                        workerScalingEnabled={app.worker_scaling_enabled}
+                        liveScaling={app.live_scaling}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Link href={`/apps/${app.slug}`} className="text-sm underline-offset-4 hover:underline">
+                        Manage
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
-    </>
+    </div>
   );
 }

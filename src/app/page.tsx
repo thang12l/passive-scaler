@@ -1,32 +1,54 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 export default function Home() {
   return (
-    <>
-      <h1>Passive Scaler</h1>
-      <p>Push-based auto-scaling service for Heroku apps.</p>
-
-      <div className="card">
-        <h2>Manage apps</h2>
-        <p className="muted">
-          Add apps, configure scaling thresholds, and enable dry-run mode per app.
-        </p>
-        <Link href="/apps" className="btn primary">
-          Open app dashboard
-        </Link>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Push-based Scaler</h1>
+        <p className="text-muted-foreground">Scale when your app needs it.</p>
       </div>
 
-      <div className="card">
-        <h2>Webhook</h2>
-        <ul>
-          <li>
-            <code>POST /api/webhooks/metrics</code> — receive metrics and scale
-          </li>
-          <li>
-            <code>GET /api/status?app=&lt;app_name&gt;</code> — current scaling state
-          </li>
-        </ul>
-      </div>
-    </>
+      <Card>
+        <CardHeader>
+          <CardTitle>Manage apps</CardTitle>
+          <CardDescription>
+            Add apps, configure scaling thresholds, and enable dry-run mode per app.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild>
+            <Link href="/apps">Open app dashboard</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Webhook</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="list-disc space-y-1 pl-5 text-sm">
+            <li>
+              <code className="font-mono text-xs">POST /api/webhooks/metrics</code> — receive
+              metrics and scale
+            </li>
+            <li>
+              <code className="font-mono text-xs">
+                GET /api/status?app=&lt;app_name&gt;
+              </code>{" "}
+              — current scaling state
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

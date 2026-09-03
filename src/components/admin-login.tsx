@@ -2,6 +2,17 @@
 
 import { FormEvent, useState } from "react";
 import { setAdminToken } from "@/lib/admin-client";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export function AdminLogin({ onAuthenticated }: { onAuthenticated: () => void }) {
   const [token, setToken] = useState("");
@@ -28,24 +39,34 @@ export function AdminLogin({ onAuthenticated }: { onAuthenticated: () => void })
   }
 
   return (
-    <div className="card" style={{ maxWidth: "420px" }}>
-      <h2>Admin login</h2>
-      <p className="muted">Enter your ADMIN_SECRET to manage apps.</p>
-      <form onSubmit={handleSubmit}>
-        <label htmlFor="admin-token">Admin secret</label>
-        <input
-          id="admin-token"
-          type="password"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          placeholder="ADMIN_SECRET"
-          required
-        />
-        {error && <div className="alert error">{error}</div>}
-        <button type="submit" className="primary" disabled={loading}>
-          {loading ? "Checking…" : "Continue"}
-        </button>
-      </form>
-    </div>
+    <Card className="max-w-md">
+      <CardHeader>
+        <CardTitle>Admin login</CardTitle>
+        <CardDescription>Enter your ADMIN_SECRET to manage apps.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid gap-2">
+            <Label htmlFor="admin-token">Admin secret</Label>
+            <Input
+              id="admin-token"
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="ADMIN_SECRET"
+              required
+            />
+          </div>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <Button type="submit" disabled={loading}>
+            {loading ? "Checking…" : "Continue"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
