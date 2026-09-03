@@ -74,6 +74,34 @@ input[type="password"] {
   margin-bottom: 0.85rem;
 }
 
+.secret-input {
+  position: relative;
+  margin-bottom: 0.85rem;
+}
+
+.secret-input input {
+  margin-bottom: 0;
+  padding-right: 2.75rem;
+}
+
+.secret-input button {
+  position: absolute;
+  right: 0.3rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
+  border: none;
+  background: transparent;
+  color: #9aa3af;
+}
+
+.secret-input button:hover {
+  color: #e8eaed;
+}
+
 input[type="checkbox"] {
   margin-right: 0.5rem;
 }

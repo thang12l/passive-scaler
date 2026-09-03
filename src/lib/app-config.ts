@@ -114,7 +114,7 @@ export function getPublicAppConfig(app: App) {
   };
 }
 
-export function serializeApp(app: App) {
+export function serializeApp(app: App, options?: { includeHerokuApiKey?: boolean }) {
   return {
     slug: app.slug,
     app_name: app.appName,
@@ -136,6 +136,13 @@ export function serializeApp(app: App) {
     worker_scale_down_cooldown_seconds: app.workerScaleDownCooldownSeconds,
     has_app_heroku_api_key: hasStoredAppHerokuApiKey(app),
     has_platform_heroku_api_key: Boolean(getPlatformHerokuApiKey()),
+    ...(options?.includeHerokuApiKey
+      ? {
+          heroku_api_key: hasStoredAppHerokuApiKey(app)
+            ? (app.herokuApiKey?.trim() ?? "")
+            : "",
+        }
+      : {}),
     live_scaling: isLiveScaling(app),
     created_at: app.createdAt.toISOString(),
     updated_at: app.updatedAt.toISOString(),

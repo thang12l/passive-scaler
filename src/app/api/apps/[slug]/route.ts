@@ -33,7 +33,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }, null);
 
   return NextResponse.json({
-    app: serializeApp(app),
+    app: serializeApp(app, { includeHerokuApiKey: true }),
     webhook_url: `${baseUrl}/api/webhooks/metrics`,
     last_reported_at: lastReportedAt?.toISOString() ?? null,
     formations: formations.map(serializeFormationState),
@@ -72,7 +72,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const baseUrl = resolveAppBaseUrl(request.nextUrl.origin);
 
   return NextResponse.json({
-    app: serializeApp(app),
+    app: serializeApp(app, { includeHerokuApiKey: true }),
     webhook_url: `${baseUrl}/api/webhooks/metrics`,
   });
 }

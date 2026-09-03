@@ -32,6 +32,7 @@ interface AppDetail {
   worker_scale_down_cooldown_seconds: number;
   has_app_heroku_api_key: boolean;
   has_platform_heroku_api_key: boolean;
+  heroku_api_key?: string;
 }
 
 interface FormationState {
@@ -161,7 +162,9 @@ export default function EditAppPage() {
         worker_memory_threshold_percent: values.worker_memory_threshold_percent,
         worker_scale_up_cooldown_seconds: values.worker_scale_up_cooldown_seconds,
         worker_scale_down_cooldown_seconds: values.worker_scale_down_cooldown_seconds,
-        heroku_api_key: values.heroku_api_key || "",
+        ...(values.heroku_api_key !== (app?.heroku_api_key ?? "")
+          ? { heroku_api_key: values.heroku_api_key }
+          : {}),
       }),
     });
 
@@ -225,7 +228,7 @@ export default function EditAppPage() {
     worker_memory_threshold_percent: app.worker_memory_threshold_percent,
     worker_scale_up_cooldown_seconds: app.worker_scale_up_cooldown_seconds,
     worker_scale_down_cooldown_seconds: app.worker_scale_down_cooldown_seconds,
-    heroku_api_key: "",
+    heroku_api_key: app.heroku_api_key ?? "",
   };
 
   const webFormation = formations.find((f) => f.process_type === "web");
@@ -277,6 +280,7 @@ export default function EditAppPage() {
       <EventsTable slug={slug} reloadToken={eventsReloadToken} />
 
       <AppForm
+        key={slug}
         mode="edit"
         initial={formValues}
         onSubmit={handleSubmit}

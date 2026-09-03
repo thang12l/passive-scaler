@@ -32,6 +32,40 @@ interface AppFormProps {
   hasPlatformHerokuApiKey?: boolean;
 }
 
+function EyeIcon({ open }: { open: boolean }) {
+  if (open) {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M3 3l18 18"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <path
+          d="M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A10.8 10.8 0 0 1 12 5c7 0 10 7 10 7a18.5 18.5 0 0 1-3.2 3.8M6.1 6.1A18.3 18.3 0 0 0 2 12s3 7 10 7a10.4 10.4 0 0 0 4.2-.9"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
 export function AppForm({
   initial,
   mode,
@@ -43,6 +77,7 @@ export function AppForm({
   const [values, setValues] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showHerokuApiKey, setShowHerokuApiKey] = useState(false);
 
   function updateField<K extends keyof AppFormValues>(key: K, value: AppFormValues[K]) {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -264,15 +299,33 @@ export function AppForm({
           ? "This app will use its own key."
           : hasPlatformHerokuApiKey
             ? "This app will use the platform HEROKU_API_KEY."
-            : "No Heroku API key is available, so live scaling cannot run."}
+            : "No Heroku API key is available, so live scaling cannot run."}{" "}
+        {mode === "edit" && hasAppHerokuApiKey
+          ? "Leave the field unchanged to keep the current key. Clear it and save to fall back to the platform key."
+          : "Leave empty to use the platform HEROKU_API_KEY."}
       </p>
-      <input
-        id="heroku_api_key"
-        type="password"
-        value={values.heroku_api_key}
-        onChange={(e) => updateField("heroku_api_key", e.target.value)}
-        placeholder="Leave empty to use platform HEROKU_API_KEY"
-      />
+      <div className="secret-input">
+        <input
+          id="heroku_api_key"
+          name="heroku_api_key"
+          type={showHerokuApiKey ? "text" : "password"}
+          value={values.heroku_api_key}
+          onChange={(e) => updateField("heroku_api_key", e.target.value)}
+          placeholder="Leave empty to use platform HEROKU_API_KEY"
+          autoComplete="off"
+          spellCheck={false}
+          data-lpignore="true"
+          data-1p-ignore="true"
+        />
+        <button
+          type="button"
+          onClick={() => setShowHerokuApiKey((visible) => !visible)}
+          aria-label={showHerokuApiKey ? "Hide API key" : "Show API key"}
+          title={showHerokuApiKey ? "Hide API key" : "Show API key"}
+        >
+          <EyeIcon open={showHerokuApiKey} />
+        </button>
+      </div>
 
       {error && <div className="alert error">{error}</div>}
 
