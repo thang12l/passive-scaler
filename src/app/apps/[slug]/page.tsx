@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppForm, type AppFormValues } from "@/components/app-form";
 import { AdminLogin } from "@/components/admin-login";
 import { EventsTable } from "@/components/events-table";
 import { FormationPanel } from "@/components/formation-panel";
 import { StatusBadge } from "@/components/status-badge";
-import { adminFetch, getAdminToken } from "@/lib/admin-client";
+import { adminFetch, getAdminToken, watchAppLive } from "@/lib/admin-client";
 
 interface AppDetail {
   slug: string;
@@ -61,32 +61,85 @@ export default function EditAppPage() {
   const [loading, setLoading] = useState(true);
   const [newSecret, setNewSecret] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [eventsReloadToken, setEventsReloadToken] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadApp = useCallback(async () => {
-    setLoading(true);
-    const response = await adminFetch(`/api/apps/${slug}`);
-    if (response.status === 401) {
-      setAuthenticated(false);
-      setLoading(false);
-      return;
+  const loadApp = useCallback(async (opts?: { silent?: boolean }) => {
+    if (opts?.silent) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const response = await adminFetch(`/api/apps/${slug}`);
+      if (response.status === 401) {
+        setAuthenticated(false);
+        return;
+      }
+      if (!response.ok) return;
+      const data = await response.json();
+      setApp(data.app);
+      setFormations(data.formations ?? []);
+      setLastReportedAt(data.last_reported_at ?? null);
+      setWebhookUrl(data.webhook_url);
+      setAuthenticated(true);
+    } finally {
+      if (opts?.silent) setRefreshing(false);
+      else setLoading(false);
     }
-    if (!response.ok) {
-      setLoading(false);
-      return;
-    }
-    const data = await response.json();
-    setApp(data.app);
-    setFormations(data.formations ?? []);
-    setLastReportedAt(data.last_reported_at ?? null);
-    setWebhookUrl(data.webhook_url);
-    setAuthenticated(true);
-    setLoading(false);
   }, [slug]);
 
   useEffect(() => {
     if (getAdminToken()) loadApp();
     else setLoading(false);
   }, [loadApp]);
+
+  const refreshFromMetrics = useCallback(() => {
+    setRefreshing(true);
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => {
+      void loadApp({ silent: true });
+      setEventsReloadToken((token) => token + 1);
+    }, 300);
+  }, [loadApp]);
+
+  const hasApp = Boolean(app);
+
+  useEffect(() => {
+    if (!authenticated || !slug || !hasApp) return;
+
+    const controller = new AbortController();
+    let stopped = false;
+    let delay = 1000;
+
+    const wait = (ms: number) =>
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        controller.signal.addEventListener("abort", () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+
+    const connect = async () => {
+      while (!stopped && !controller.signal.aborted) {
+        try {
+          const result = await watchAppLive(slug, refreshFromMetrics, controller.signal);
+          if (result === "unauthorized" || stopped || controller.signal.aborted) return;
+          delay = 1000;
+        } catch {
+          if (stopped || controller.signal.aborted) return;
+        }
+        await wait(delay);
+        delay = Math.min(delay * 2, 15_000);
+      }
+    };
+
+    void connect();
+    return () => {
+      stopped = true;
+      controller.abort();
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    };
+  }, [authenticated, slug, hasApp, refreshFromMetrics]);
 
   async function handleSubmit(values: AppFormValues) {
     const response = await adminFetch(`/api/apps/${slug}`, {
@@ -186,6 +239,7 @@ export default function EditAppPage() {
           scalingEnabled={app.scaling_enabled}
           workerScalingEnabled={app.worker_scaling_enabled}
           liveScaling={app.live_scaling}
+          refreshing={refreshing}
         />
       </div>
 
@@ -220,7 +274,7 @@ export default function EditAppPage() {
       {webFormation && <FormationPanel formation={webFormation} />}
       {workerFormation && <FormationPanel formation={workerFormation} />}
 
-      <EventsTable slug={slug} />
+      <EventsTable slug={slug} reloadToken={eventsReloadToken} />
 
       <AppForm
         mode="edit"

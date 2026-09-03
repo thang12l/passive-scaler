@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { adminFetch } from "@/lib/admin-client";
 
 interface ScalingEventRow {
@@ -29,7 +29,7 @@ function executionBadge(status: string) {
   return { className: "badge off", label: status };
 }
 
-export function EventsTable({ slug }: { slug: string }) {
+export function EventsTable({ slug, reloadToken = 0 }: { slug: string; reloadToken?: number }) {
   const [events, setEvents] = useState<ScalingEventRow[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -37,8 +37,8 @@ export function EventsTable({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const limit = 20;
 
-  const loadEvents = useCallback(async () => {
-    setLoading(true);
+  const loadEvents = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     const params = new URLSearchParams({
       limit: String(limit),
       offset: String(offset),
@@ -57,9 +57,17 @@ export function EventsTable({ slug }: { slug: string }) {
     setLoading(false);
   }, [slug, offset, filter]);
 
+  const loadEventsRef = useRef(loadEvents);
+  loadEventsRef.current = loadEvents;
+
   useEffect(() => {
     loadEvents();
   }, [loadEvents]);
+
+  useEffect(() => {
+    if (reloadToken === 0) return;
+    void loadEventsRef.current({ silent: true });
+  }, [reloadToken]);
 
   return (
     <div className="card">

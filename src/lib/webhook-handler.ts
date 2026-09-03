@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPublicAppConfig, isLiveScaling } from "@/lib/app-config";
 import { findAppByNameForWebhook } from "@/lib/apps-service";
 import { isWebhookDebugEnabled, logger } from "@/lib/logger";
+import { notifyMetricsProcessed } from "@/lib/metrics-live";
 import { getOrCreateFormationStates, processMetrics } from "@/lib/scaling-service";
 import {
   normalizeMetricsForScaling,
@@ -92,6 +93,7 @@ export async function handleMetricsWebhook(request: NextRequest) {
     const metrics = normalizeMetricsForScaling(payload);
     await getOrCreateFormationStates(app);
     const decision = await processMetrics(app, metrics);
+    notifyMetricsProcessed(app.slug);
 
     logger.info("Scaling decision", {
       appName: app.appName,
