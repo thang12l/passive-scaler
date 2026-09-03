@@ -9,7 +9,8 @@ RUN npm install
 
 FROM base AS dev
 ENV NODE_ENV=development
+ENV PORT=3001
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-EXPOSE 3000
+EXPOSE 3001
 ENTRYPOINT ["sh", "./scripts/docker-entrypoint.sh"]

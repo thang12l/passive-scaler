@@ -36,5 +36,5 @@ export function resolveAppBaseUrl(requestOrigin?: string): string {
   const config = getPlatformConfig();
   if (config.APP_BASE_URL) return config.APP_BASE_URL.replace(/\/$/, "");
   if (requestOrigin) return requestOrigin.replace(/\/$/, "");
-  return "http://localhost:3000";
+  return `http://localhost:${process.env.PORT ?? "3001"}`;
 }

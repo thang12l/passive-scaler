@@ -11,4 +11,4 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-exec npx next dev -H 0.0.0.0 -p 3000
+exec npx next dev -H 0.0.0.0 -p "${PORT:-3001}"

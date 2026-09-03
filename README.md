@@ -13,7 +13,7 @@ npm run db:push   # if needed
 npm run db:seed   # optional legacy import
 ```
 
-App runs at http://localhost:3000.
+App runs at http://localhost:3001 (set `PORT` to change). Postgres is published on `DB_PORT` (default `5433`).
 
 ### Manual
 
@@ -54,7 +54,7 @@ Canonical metrics endpoint. Legacy alias: `/api/webhooks/heroku-metrics`.
 **Auth:** `Authorization: Bearer <per-app-webhook-secret>`
 
 ```bash
-curl -X POST http://localhost:3000/api/webhooks/metrics \
+curl -X POST http://localhost:3001/api/webhooks/metrics \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <app-webhook-secret>" \
   -d '{
@@ -91,6 +91,8 @@ All routes require `Authorization: Bearer <ADMIN_SECRET>`.
 |----------|----------|-------------|
 | `ADMIN_SECRET` | Yes | Protects dashboard and admin API |
 | `DATABASE_URL` | Yes | Postgres connection string |
+| `PORT` | No | Listen port (default `3001`). For Docker: `PORT=3002 docker compose up` |
+| `DB_PORT` | No | Host port for Docker Postgres (default `5433`). The app still connects to `db:5432` on the compose network. |
 | `HEROKU_API_KEY` | No | Platform-wide Heroku key (apps can override) |
 | `APP_BASE_URL` | No | Public URL for webhook links in dashboard |
 | `LOG_LEVEL` | No | `debug` \| `info` \| `warn` \| `error` (default `info`) |
