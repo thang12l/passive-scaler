@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminAuth } from "@/lib/admin-auth";
 import { serializeApp, serializeFormationState } from "@/lib/app-config";
-import { resolveAppBaseUrl } from "@/lib/platform-config";
+import { getPlatformHerokuApiKey, resolveAppBaseUrl } from "@/lib/platform-config";
 import { createApp, createAppSchema, listApps } from "@/lib/apps-service";
 import { prisma } from "@/lib/db";
 
@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
   const baseUrl = resolveAppBaseUrl(request.nextUrl.origin);
 
   return NextResponse.json({
+    has_platform_heroku_api_key: Boolean(getPlatformHerokuApiKey()),
     apps: apps.map((app) => {
       const appFormations = formations.filter((f) => f.appSlug === app.slug);
       const lastReportedAt = appFormations.reduce<Date | null>((latest, formation) => {

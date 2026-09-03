@@ -32,11 +32,18 @@ export default function NewAppPage() {
   const [authenticated, setAuthenticated] = useState(Boolean(getAdminToken()));
   const [createdSecret, setCreatedSecret] = useState<string | null>(null);
   const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
+  const [hasPlatformHerokuApiKey, setHasPlatformHerokuApiKey] = useState(false);
 
   useEffect(() => {
     if (!getAdminToken()) return;
-    adminFetch("/api/apps").then((response) => {
-      if (response.status === 401) setAuthenticated(false);
+    adminFetch("/api/apps").then(async (response) => {
+      if (response.status === 401) {
+        setAuthenticated(false);
+        return;
+      }
+      if (!response.ok) return;
+      const data = await response.json();
+      setHasPlatformHerokuApiKey(Boolean(data.has_platform_heroku_api_key));
     });
   }, []);
 
@@ -118,6 +125,7 @@ export default function NewAppPage() {
         initial={defaultValues}
         onSubmit={handleSubmit}
         submitLabel="Create app"
+        hasPlatformHerokuApiKey={hasPlatformHerokuApiKey}
       />
     </>
   );

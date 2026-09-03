@@ -49,6 +49,11 @@ export function appToWorkerScalingConfig(app: App): WorkerScalingConfig {
   };
 }
 
+export function hasStoredAppHerokuApiKey(app: App): boolean {
+  const appKey = app.herokuApiKey?.trim();
+  return Boolean(appKey && !PLACEHOLDER_HEROKU_KEYS.has(appKey));
+}
+
 export function resolveHerokuApiKey(app: App): string | null {
   const appKey = app.herokuApiKey?.trim();
   if (appKey && !PLACEHOLDER_HEROKU_KEYS.has(appKey)) return appKey;
@@ -129,7 +134,8 @@ export function serializeApp(app: App) {
     worker_memory_threshold_percent: Number(app.workerMemoryThresholdPercent),
     worker_scale_up_cooldown_seconds: app.workerScaleUpCooldownSeconds,
     worker_scale_down_cooldown_seconds: app.workerScaleDownCooldownSeconds,
-    has_heroku_api_key: Boolean(app.herokuApiKey?.trim()) || Boolean(getPlatformHerokuApiKey()),
+    has_app_heroku_api_key: hasStoredAppHerokuApiKey(app),
+    has_platform_heroku_api_key: Boolean(getPlatformHerokuApiKey()),
     live_scaling: isLiveScaling(app),
     created_at: app.createdAt.toISOString(),
     updated_at: app.updatedAt.toISOString(),

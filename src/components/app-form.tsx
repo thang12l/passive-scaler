@@ -28,9 +28,18 @@ interface AppFormProps {
   mode: "create" | "edit";
   onSubmit: (values: AppFormValues) => Promise<void>;
   submitLabel: string;
+  hasAppHerokuApiKey?: boolean;
+  hasPlatformHerokuApiKey?: boolean;
 }
 
-export function AppForm({ initial, mode, onSubmit, submitLabel }: AppFormProps) {
+export function AppForm({
+  initial,
+  mode,
+  onSubmit,
+  submitLabel,
+  hasAppHerokuApiKey = false,
+  hasPlatformHerokuApiKey = false,
+}: AppFormProps) {
   const [values, setValues] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -248,6 +257,15 @@ export function AppForm({ initial, mode, onSubmit, submitLabel }: AppFormProps) 
       </div>
 
       <label htmlFor="heroku_api_key">Heroku API key (optional, per-app override)</label>
+      <p className="muted">
+        Per-app key: {hasAppHerokuApiKey ? "set" : "not set"}. Platform HEROKU_API_KEY:{" "}
+        {hasPlatformHerokuApiKey ? "set" : "not set"}.{" "}
+        {hasAppHerokuApiKey
+          ? "This app will use its own key."
+          : hasPlatformHerokuApiKey
+            ? "This app will use the platform HEROKU_API_KEY."
+            : "No Heroku API key is available, so live scaling cannot run."}
+      </p>
       <input
         id="heroku_api_key"
         type="password"

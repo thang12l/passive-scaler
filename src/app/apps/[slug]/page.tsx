@@ -30,7 +30,8 @@ interface AppDetail {
   worker_memory_threshold_percent: number;
   worker_scale_up_cooldown_seconds: number;
   worker_scale_down_cooldown_seconds: number;
-  has_heroku_api_key: boolean;
+  has_app_heroku_api_key: boolean;
+  has_platform_heroku_api_key: boolean;
 }
 
 interface FormationState {
@@ -226,6 +227,8 @@ export default function EditAppPage() {
         initial={formValues}
         onSubmit={handleSubmit}
         submitLabel="Save settings"
+        hasAppHerokuApiKey={app.has_app_heroku_api_key}
+        hasPlatformHerokuApiKey={app.has_platform_heroku_api_key}
       />
 
       <div className="card">
