@@ -207,7 +207,7 @@ export function AppForm({
                 <Input
                   id="worker_min_dynos"
                   type="number"
-                  min={1}
+                  min={0}
                   value={values.worker_min_dynos}
                   onChange={(e) => updateField("worker_min_dynos", Number(e.target.value))}
                 />

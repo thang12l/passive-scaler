@@ -36,7 +36,7 @@ const appFieldsSchema = z.object({
   scale_up_cooldown_seconds: z.coerce.number().int().min(0).optional().default(300),
   scale_down_cooldown_seconds: z.coerce.number().int().min(0).optional().default(600),
   worker_scaling_enabled: z.boolean().optional().default(false),
-  worker_min_dynos: z.coerce.number().int().min(1).optional().default(1),
+  worker_min_dynos: z.coerce.number().int().min(0).optional().default(1),
   worker_max_dynos: z.coerce.number().int().min(1).optional().default(5),
   worker_queue_size_threshold: z.coerce.number().int().min(1).optional().default(10),
   worker_queue_latency_threshold_ms: z.coerce.number().int().positive().optional().default(5000),
