@@ -67,6 +67,29 @@ curl -X POST http://localhost:3001/api/webhooks/metrics \
   }'
 ```
 
+To report web and worker in one call, send `reports` (one object per `process_type`). Envelope `app_name` and `timestamp` are shared:
+
+```bash
+curl -X POST http://localhost:3001/api/webhooks/metrics \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <app-webhook-secret>" \
+  -d '{
+    "app_name": "cartmagician",
+    "timestamp": "2026-09-02T05:38:00Z",
+    "reports": [
+      {
+        "process_type": "web",
+        "avg_response_time": 150.5,
+        "memory_percent": 72.3
+      },
+      {
+        "process_type": "worker",
+        "queue_size": 27
+      }
+    ]
+  }'
+```
+
 ### GET `/api/status?app=<slug>`
 
 Returns current scaling state for an app. Requires that app's webhook secret.
@@ -124,7 +147,7 @@ npm run db:seed
 
 - **Apps table** — per-app web & worker config, webhook secret hash
 - **Formation state** — independent dyno count, cooldowns, and last metrics per web/worker
-- **Webhook** — routes by `process_type`, scales matching Heroku formation
+- **Webhook** — routes by `process_type` (one formation, or both via `reports`), scales matching Heroku formation
 - **Scaling engine** — pure decision logic with cooldowns and thresholds
 - **Slack ops alerts** — optional fire-and-forget notices when a process hits min/max or a live Heroku scale fails
 - **Postgres** — tracks dyno count, last scale time, and event history

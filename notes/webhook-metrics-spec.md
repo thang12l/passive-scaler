@@ -1,6 +1,6 @@
 # Passive Scaler — Metrics Webhook Spec
 
-For a target app (or its metrics reporter) that POSTs load metrics to Passive Scaler. Passive Scaler records the sample, decides whether to scale the matching Heroku formation (`web` or `worker`), and returns the decision.
+For a target app (or its metrics reporter) that POSTs load metrics to Passive Scaler. Passive Scaler records each sample, decides whether to scale the matching Heroku formation (`web` and/or `worker`), and returns the decision(s).
 
 This is the only endpoint a target app needs to implement against.
 
@@ -63,7 +63,7 @@ JSON object. Extra keys are ignored. Numeric fields accept numbers or numeric st
 | Field | Type | Rules |
 |---|---|---|
 | `app_name` | string | Non-empty. Must match a configured scaler app (lookup is lowercased). |
-| `timestamp` | string \| number | Parseable as a date. ISO-8601 UTC string recommended (`2026-09-03T10:00:00Z`). A Unix **millisecond** epoch number is also accepted (`Date` parsing). Invalid values → `400`. |
+| `timestamp` | string \| number | Parseable as a date. ISO-8601 UTC string recommended (`2026-09-03T10:00:00Z`). A Unix **millisecond** epoch number is also accepted (`Date` parsing). Invalid values → `400`. For a `reports` batch, this may live on the envelope **or** on each report. |
 
 ### Optional
 
@@ -79,7 +79,8 @@ JSON object. Extra keys are ignored. Numeric fields accept numbers or numeric st
 | `queue_size` | number ≥ 0 | Missing → `0` for worker decisions. | **Worker scale** (jobs / dyno ratio). |
 | `queue_depths` | object of numbers | e.g. `{ "default": 12, "mailers": 3 }`. Accepted and stored on the metrics object; **not used in the current decision**. | Future / logging. |
 | `queue_latencies` | object of numbers | Milliseconds per queue. | Web fallback: max value used as response time if `avg_response_time` and `avg_queue_time` are omitted. Also stored as last queue latency. |
-| `secret_token` | string | Non-empty if present. | Legacy auth only. Prefer the Bearer header. |
+| `secret_token` | string | Non-empty if present. Envelope only. | Legacy auth only. Prefer the Bearer header. |
+| `reports` | array of 1–2 objects | Present → batch mode. Each item is one formation sample (metric fields + optional `timestamp` / `process_type` / `dyno`). Envelope `app_name`, `timestamp`, and `secret_token` are shared. Top-level metric fields are ignored. Each report must resolve to a **distinct** `process_type` (omitted → `web`). | Report web and worker in one POST. |
 
 ### How web response time is derived
 
@@ -92,7 +93,7 @@ avg_response_time
 
 ### Web vs worker — what to send
 
-Send **separate POSTs** per process type. One request updates one formation.
+A request updates one formation (flat payload) or both (`reports` with one object per `process_type`). Do not send two samples for the same formation in one call.
 
 **Web reporter** (scales on latency + memory):
 
@@ -105,6 +106,8 @@ Send **separate POSTs** per process type. One request updates one formation.
 - Always send `process_type: "worker"`.
 - Always send `queue_size` (total jobs waiting). Target dynos = `ceil(queue_size / jobs_per_dyno)`, clamped to that app’s min/max worker dynos.
 - `queue_latencies` / `memory_percent` are optional (recorded; worker decision currently uses `queue_size` only).
+
+To report both in one POST, put those same objects in `reports` and keep `app_name` / `timestamp` on the envelope.
 
 ---
 
@@ -148,6 +151,36 @@ Authorization: Bearer <webhook-secret>
 }
 ```
 
+### Web and worker together
+
+```http
+POST /api/webhooks/metrics HTTP/1.1
+Host: scaler.example.com
+Content-Type: application/json
+Authorization: Bearer <webhook-secret>
+
+{
+  "app_name": "my-heroku-app",
+  "timestamp": "2026-09-03T10:00:00Z",
+  "reports": [
+    {
+      "process_type": "web",
+      "dyno": "web.1",
+      "avg_response_time": 150.5,
+      "memory_percent": 72.3,
+      "requests_per_minute": 45,
+      "sample_count": 120
+    },
+    {
+      "process_type": "worker",
+      "queue_size": 27,
+      "queue_depths": { "default": 20, "mailers": 7 },
+      "queue_latencies": { "default": 1200, "mailers": 400 }
+    }
+  ]
+}
+```
+
 ### curl
 
 ```bash
@@ -167,7 +200,9 @@ curl -X POST "$SCALER_BASE_URL/api/webhooks/metrics" \
 
 ## Success response
 
-`200 OK` — the sample was accepted and a decision was computed. **`200` does not mean dynos changed.** Check `scaled` and `decision`.
+`200 OK` — the sample(s) were accepted and a decision was computed for each. **`200` does not mean dynos changed.** Check `scaled` and `decision` (or each `results[].decision`).
+
+A flat payload, or `reports` with a single item, returns the single-decision shape below. Two reports return the batch shape.
 
 ```json
 {
@@ -228,17 +263,71 @@ curl -X POST "$SCALER_BASE_URL/api/webhooks/metrics" \
 }
 ```
 
+### Batch success response
+
+Returned when `reports` contains two items. `scaled` is `true` if **any** formation changed. `config` is the same public object as in the single-decision response.
+
+```json
+{
+  "success": true,
+  "scaled": false,
+  "live_scaling": true,
+  "config": { "...same as single-decision response..." },
+  "results": [
+    {
+      "scaling_enabled": true,
+      "scaled": false,
+      "received": {
+        "app_name": "my-heroku-app",
+        "process_type": "web",
+        "dyno": "web.1",
+        "timestamp": "2026-09-03T10:00:00.000Z"
+      },
+      "decision": {
+        "process_type": "web",
+        "should_scale": false,
+        "action": null,
+        "current_dynos": 2,
+        "target_dynos": 2,
+        "reason": "Web metrics are healthy"
+      }
+    },
+    {
+      "scaling_enabled": true,
+      "scaled": false,
+      "received": {
+        "app_name": "my-heroku-app",
+        "process_type": "worker",
+        "dyno": null,
+        "timestamp": "2026-09-03T10:00:00.000Z"
+      },
+      "decision": {
+        "process_type": "worker",
+        "should_scale": false,
+        "action": null,
+        "current_dynos": 1,
+        "target_dynos": 1,
+        "reason": "Worker queue 27 exceeds 10 jobs/dyno (target 3)"
+      }
+    }
+  ]
+}
+```
+
+`results[].decision` uses the same fields as the single `decision` object.
+
 ### Top-level fields
 
 | Field | Type | Meaning |
 |---|---|---|
 | `success` | `true` | Request parsed, app found, auth passed, decision computed. |
-| `scaling_enabled` | boolean | Whether scaling is enabled **for the process type in this request**. If `false`, metrics were stored but no scale was attempted (`reason` explains). |
-| `scaled` | boolean | `true` only if Heroku formation quantity was actually changed on this request. |
+| `scaling_enabled` | boolean | Single-decision responses only. Whether scaling is enabled **for that process type**. If `false`, metrics were stored but no scale was attempted (`reason` explains). |
+| `scaled` | boolean | Single: formation changed on this request. Batch: `true` if **any** formation changed. |
 | `live_scaling` | boolean | `true` if **either** web or worker can live-scale (enabled + Heroku API key present). Not specific to this request’s process type. |
-| `received` | object | Echo of resolved `app_name`, `process_type`, `dyno`, `timestamp` (ISO). |
+| `received` | object | Single-decision responses only. Echo of resolved `app_name`, `process_type`, `dyno`, `timestamp` (ISO). |
 | `config` | object | Public copy of the app’s web/worker thresholds. Safe to log; no secrets. |
-| `decision` | object | Scale decision for this sample. |
+| `decision` | object | Single-decision responses only. Scale decision for this sample. |
+| `results` | array | Batch responses only. One `{ scaling_enabled, scaled, received, decision }` per report. |
 
 ### `decision`
 
@@ -252,7 +341,7 @@ curl -X POST "$SCALER_BASE_URL/api/webhooks/metrics" \
 | `reason` | string | Human-readable explanation (healthy, cooldown, disabled, scaled, etc.). |
 | `execution_status` | `"not_executed"` \| `"failed"` \| `"succeeded"` \| `null` | Set when a scale was decided. `null` when no scale was attempted. `not_executed` = no Heroku API key; `failed` = Heroku call failed or returned a different quantity; `succeeded` = Heroku confirmed the target formation. |
 
-Treat `success: true` as “reporter job succeeded.” Do not retry `200` responses. Use `scaled` / `decision.reason` / `decision.execution_status` for diagnostics only. A missing API key or failed Heroku call still returns `200` and writes a scaling event.
+Treat `success: true` as “reporter job succeeded.” Do not retry `200` responses. Use `scaled` / `decision.reason` / `decision.execution_status` (or the matching `results[]` fields) for diagnostics only. A missing API key or failed Heroku call still returns `200` and writes a scaling event.
 
 ---
 
@@ -264,7 +353,7 @@ All errors are JSON: `{ "success": false, "error": string, ... }`.
 |---|---|---|---|
 | `400` | `Request body must be valid JSON` | Body is not parseable JSON | — |
 | `400` | `Request body must be a JSON object` | Body is an array, null, or primitive | — |
-| `400` | `Invalid payload` | Schema failure (missing `app_name`/`timestamp`, bad `process_type`, out-of-range numbers, bad timestamp) | `details` — Zod formatted errors |
+| `400` | `Invalid payload` | Schema failure (missing `app_name`/`timestamp`, bad `process_type`, duplicate `process_type` in `reports`, out-of-range numbers, bad timestamp) | `details` — Zod formatted errors |
 | `404` | `Unknown app` | No scaler app with that `app_name` | `app_name`, `hint` |
 | `401` | `Unauthorized` | Secret missing or wrong for that app | — |
 | `500` | `Internal server error` | Unexpected failure (database, etc.). Heroku scale failures are recorded as events and return `200` with `execution_status: "failed"`. | — |
@@ -312,7 +401,7 @@ There is no idempotency key. Duplicate POSTs are processed independently. Scale-
 
 1. Run on a timer (e.g. every 30–60s). Cooldowns are typically minutes; more frequent reports still update last-seen metrics.
 2. Set `Content-Type: application/json` and `Authorization: Bearer <secret>`.
-3. Send one POST per process type you care about (`web` and/or `worker`).
+3. Send a flat POST for one process type, or one POST with `reports` for both `web` and `worker`.
 4. Use UTC ISO-8601 for `timestamp` (time the sample was taken, not send time if they differ).
 5. Treat HTTP `200` as success even when `scaled` is `false`.
 6. Log `decision.reason` on your side; do not parse it for control flow.
