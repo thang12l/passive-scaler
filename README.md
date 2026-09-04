@@ -95,6 +95,8 @@ All routes require `Authorization: Bearer <ADMIN_SECRET>`.
 | `DB_PORT` | No | Host port for Docker Postgres (default `5433`). The app still connects to `db:5432` on the compose network. |
 | `HEROKU_API_KEY` | No | Platform-wide Heroku key (apps can override) |
 | `APP_BASE_URL` | No | Public URL for webhook links in dashboard |
+| `SLACK_TOKEN` | No | Slack bot token (`xoxb-…`). Missing token or channel disables Slack |
+| `SLACK_CHANNEL` | No | Slack channel ID (`C…`) for ops alerts |
 | `LOG_LEVEL` | No | `debug` \| `info` \| `warn` \| `error` (default `info`) |
 | `WEBHOOK_DEBUG` | No | `true` to log unsuccessful webhook requests (also on when `LOG_LEVEL=debug`) |
 
@@ -124,4 +126,5 @@ npm run db:seed
 - **Formation state** — independent dyno count, cooldowns, and last metrics per web/worker
 - **Webhook** — routes by `process_type`, scales matching Heroku formation
 - **Scaling engine** — pure decision logic with cooldowns and thresholds
+- **Slack ops alerts** — optional fire-and-forget notices when a process hits min/max or a live Heroku scale fails
 - **Postgres** — tracks dyno count, last scale time, and event history

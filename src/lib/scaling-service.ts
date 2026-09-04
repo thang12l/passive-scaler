@@ -17,6 +17,10 @@ import {
   type MetricsInput,
   type ScalingDecision,
 } from "./scaling-engine";
+import {
+  notifyDynoThresholdReached,
+  notifyScalingExecutionFailed,
+} from "./slack-notifications";
 
 export interface ProcessMetricsResult extends ScalingDecision {
   processType: ProcessType;
@@ -27,6 +31,10 @@ export interface ProcessMetricsResult extends ScalingDecision {
 
 function minDynosForProcess(app: App, processType: ProcessType): number {
   return processType === "worker" ? app.workerMinDynos : app.minDynos;
+}
+
+function maxDynosForProcess(app: App, processType: ProcessType): number {
+  return processType === "worker" ? app.workerMaxDynos : app.maxDynos;
 }
 
 function maxQueueLatency(metrics: MetricsInput): number {
@@ -144,6 +152,8 @@ async function recordScalingDecision(
     resultingDynos,
   });
 
+  notifyScalingOutcome(app, processType, decision, outcome);
+
   return {
     ...decision,
     processType,
@@ -153,6 +163,61 @@ async function recordScalingDecision(
     scaled: succeeded,
     executionStatus: outcome.status,
   };
+}
+
+function notifyScalingOutcome(
+  app: App,
+  processType: ProcessType,
+  decision: ScalingDecision,
+  outcome: {
+    status: ScalingExecutionStatus;
+    error?: string | null;
+    resultingDynos?: number | null;
+  }
+): void {
+  if (!decision.action) return;
+
+  if (outcome.status === SCALING_EXECUTION_STATUS.FAILED) {
+    notifyScalingExecutionFailed({
+      appName: app.appName,
+      appSlug: app.slug,
+      processType,
+      action: decision.action,
+      fromDynos: decision.currentDynos,
+      targetDynos: decision.targetDynos,
+      herokuError: outcome.error?.trim() || "Heroku API call failed",
+      reason: decision.reason,
+    });
+    return;
+  }
+
+  if (outcome.status !== SCALING_EXECUTION_STATUS.SUCCEEDED) return;
+
+  const resultingDynos = outcome.resultingDynos;
+  if (resultingDynos == null) return;
+
+  const minDynos = minDynosForProcess(app, processType);
+  const maxDynos = maxDynosForProcess(app, processType);
+  const threshold =
+    decision.action === "scale_up" && resultingDynos === maxDynos
+      ? "max"
+      : decision.action === "scale_down" && resultingDynos === minDynos
+        ? "min"
+        : null;
+  if (!threshold) return;
+
+  notifyDynoThresholdReached({
+    appName: app.appName,
+    appSlug: app.slug,
+    processType,
+    action: decision.action,
+    threshold,
+    fromDynos: decision.currentDynos,
+    toDynos: resultingDynos,
+    minDynos,
+    maxDynos,
+    reason: decision.reason,
+  });
 }
 
 export async function getOrCreateFormationStates(app: App) {
