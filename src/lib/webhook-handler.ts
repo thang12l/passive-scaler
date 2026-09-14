@@ -31,6 +31,12 @@ function logUnsuccessfulWebhook(
   });
 }
 
+function redactedWebhookPayload(body: unknown): unknown {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return body;
+  if (!("secret_token" in body)) return body;
+  return { ...body, secret_token: "[redacted]" };
+}
+
 function receivedEcho(appName: string, decision: ProcessMetricsResult, metrics: MetricsInput) {
   return {
     app_name: appName,
@@ -62,8 +68,8 @@ function resultEcho(appName: string, decision: ProcessMetricsResult, metrics: Me
 }
 
 export async function handleMetricsWebhook(request: NextRequest) {
+  let body: unknown;
   try {
-    let body: unknown;
     try {
       body = await request.json();
     } catch {
@@ -176,6 +182,7 @@ export async function handleMetricsWebhook(request: NextRequest) {
   } catch (error) {
     logger.error("Webhook handler failed", {
       error: error instanceof Error ? error.message : "unknown",
+      payload: redactedWebhookPayload(body),
     });
     return NextResponse.json(
       { success: false, error: "Internal server error" },
