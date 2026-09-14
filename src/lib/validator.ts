@@ -6,6 +6,15 @@ import type { MetricsInput } from "./scaling-engine";
 
 const numericRecord = z.record(z.union([z.number(), z.string()]).pipe(z.coerce.number()));
 
+/** Fits `formation_state.last_response_time` / `last_queue_latency` Decimal(10, 2). */
+export const MAX_STORED_LATENCY_MS = 99_999_999;
+
+const latencyMs = z.coerce.number().nonnegative().max(MAX_STORED_LATENCY_MS, {
+  message: `must be at most ${MAX_STORED_LATENCY_MS} milliseconds`,
+});
+
+const latencyRecord = z.record(z.union([z.number(), z.string()]).pipe(latencyMs));
+
 const timestampSchema = z
   .union([z.string(), z.number(), z.date()])
   .transform((value, ctx) => {
@@ -27,14 +36,14 @@ const timestampSchema = z
 const metricsFieldsSchema = z.object({
   process_type: z.enum(["web", "worker"]).optional(),
   dyno: z.string().optional(),
-  avg_response_time: z.coerce.number().nonnegative().optional(),
-  avg_queue_time: z.coerce.number().nonnegative().optional(),
+  avg_response_time: latencyMs.optional(),
+  avg_queue_time: latencyMs.optional(),
   memory_percent: z.coerce.number().min(0).max(100).optional(),
   requests_per_minute: z.coerce.number().nonnegative().optional(),
   sample_count: z.coerce.number().int().nonnegative().optional(),
   queue_size: z.coerce.number().nonnegative().optional(),
   queue_depths: numericRecord.optional(),
-  queue_latencies: numericRecord.optional(),
+  queue_latencies: latencyRecord.optional(),
 });
 
 export const metricsPayloadSchema = metricsFieldsSchema

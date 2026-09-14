@@ -71,14 +71,14 @@ JSON object. Extra keys are ignored. Numeric fields accept numbers or numeric st
 |---|---|---|---|
 | `process_type` | `"web"` \| `"worker"` | Only these two values. **Omit or anything other than `"worker"` is treated as `"web"`** after validation — invalid strings fail validation. | Routes the sample to the web or worker formation. |
 | `dyno` | string | Echoed in the response; not used for the scale decision. | Debugging / which instance reported. |
-| `avg_response_time` | number ≥ 0 | Milliseconds. | **Web scale-up/down.** |
-| `avg_queue_time` | number ≥ 0 | Milliseconds. | Web fallback if `avg_response_time` is omitted. |
+| `avg_response_time` | number ≥ 0 | Milliseconds. Max `99999999` (~27.8 hours). Larger → `400`. | **Web scale-up/down.** |
+| `avg_queue_time` | number ≥ 0 | Milliseconds. Same max as `avg_response_time`. | Web fallback if `avg_response_time` is omitted. |
 | `memory_percent` | number 0–100 | Percent. Missing → `0`. | **Web scale-up/down.** |
 | `requests_per_minute` | number ≥ 0 | Recorded; not used in the current decision. | Observability. |
 | `sample_count` | integer ≥ 0 | Recorded; not used in the current decision. | Observability. |
 | `queue_size` | number ≥ 0 | Missing → `0` for worker decisions. | **Worker scale** (jobs / dyno ratio). |
 | `queue_depths` | object of numbers | e.g. `{ "default": 12, "mailers": 3 }`. Accepted and stored on the metrics object; **not used in the current decision**. | Future / logging. |
-| `queue_latencies` | object of numbers | Milliseconds per queue. | Web fallback: max value used as response time if `avg_response_time` and `avg_queue_time` are omitted. Also stored as last queue latency. |
+| `queue_latencies` | object of numbers | Milliseconds per queue. Each value has the same max as `avg_response_time`. | Web fallback: max value used as response time if `avg_response_time` and `avg_queue_time` are omitted. Also stored as last queue latency. |
 | `secret_token` | string | Non-empty if present. Envelope only. | Legacy auth only. Prefer the Bearer header. |
 | `reports` | array of 1–2 objects | Present → batch mode. Each item is one formation sample (metric fields + optional `timestamp` / `process_type` / `dyno`). Envelope `app_name`, `timestamp`, and `secret_token` are shared. Top-level metric fields are ignored. Each report must resolve to a **distinct** `process_type` (omitted → `web`). | Report web and worker in one POST. |
 
