@@ -19,7 +19,7 @@ App runs at http://localhost:3001 (set `PORT` to change). Postgres is published 
 
 ```bash
 npm install
-cp .env.example .env.local
+cp .env.example .env
 npm run db:push
 npm run db:seed   # optional
 npm run dev
@@ -36,6 +36,14 @@ vercel --prod
 ```
 
 Set `ADMIN_SECRET` in Vercel env vars before using the dashboard.
+
+### Supabase
+
+For local setup, put the Supabase **Session pooler** connection string (port `5432`) in `DATABASE_URL` in `.env`, then run `npm run db:push`. Prisma schema commands should not use the transaction pooler on port `6543`.
+
+If `.env.local` also defines `DATABASE_URL`, update it to the same database: Next.js gives `.env.local` precedence, while Prisma CLI loads `.env`. Restart the dev server after changing these values.
+
+`db:push` creates the `apps`, `formation_state`, and `scaling_events` tables; it does not copy records from Neon. Run `npm run db:seed` for initial app and formation records (a legacy app from environment variables, or an example app if empty). Scaling events are created by app activity. Preserving existing Neon records requires a separate data transfer.
 
 ## Dashboard
 
